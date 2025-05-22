@@ -9,7 +9,7 @@ This guide outlines the steps to deploy services within this LXC container. Whil
 3.  [Portainer Installation](#portainer-installation)
 4.  [Nginx Proxy Manager Installation](./npm/npm.md)
 5.  [Cloudflared Installation](./cloudflared/cloudflared.md)
-6.  [Tailscale Installation](./tailscale/notes.md)
+6.  [Tailscale Installation](./tailscale/tailscale.md)
 7.  [Other Services Installation](./README.md#other-services)
 
 

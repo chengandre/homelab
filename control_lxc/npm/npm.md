@@ -9,7 +9,7 @@ NPM acts as a reverse proxy, providing a single entry point for external request
 3.  [Portainer Installation](../README.md#portainer-installation)
 4.  [Nginx Proxy Manager Installation](../npm/npm.md)
 5.  [Cloudflared Installation](../cloudflared/cloudflared.md)
-6.  [Tailscale Installation](../tailscale/notes.md)
+6.  [Tailscale Installation](../tailscale/tailscale.md)
 7.  [Other Services Installation](./README.md#other-services)
 
 ### 1. Deployment

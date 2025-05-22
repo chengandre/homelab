@@ -53,6 +53,7 @@ Services hosted on this VM are intended for public access via Cloudflare Tunnel:
 *   **SearXNG:** A privacy-respecting metasearch engine.
 *   **Nextcloud:** Personal cloud storage, file sharing, and collaboration platform.
 *   **OpenWebUI:** A user-friendly web interface for interacting with local Large Language Models (LLMs).
+*   **Gluetun:** Containerized VPN client routing outbound traffic for other VM services (e.g. SearXNG).
 
 #### `ts_vm` (Tailscale Accessible VM)
 

@@ -2,6 +2,16 @@
 
 Tailscale provides a secure virtual private network (VPN) solution, enabling access to services within this LXC container (and other devices on your Tailnet) without requiring open inbound ports on your router. It creates a peer-to-peer mesh network.
 
+**Table of Contents:**
+
+1.  [LXC Container Creation in Proxmox](../README.md#1-lxc-container-creation-in-proxmox)
+2.  [Initial LXC configuration](../README.md#2-initial-lxc-configuration)
+3.  [Portainer Installation](../README.md#portainer-installation)
+4.  [Nginx Proxy Manager Installation](../npm/npm.md)
+5.  [Cloudflared Installation](../cloudflared/cloudflared.md)
+6.  [Tailscale Installation](../tailscale/tailscale.md)
+7.  [Other Services Installation](./README.md#other-services)
+
 
 ### 1. Prerequisites for LXC Deployment
 
