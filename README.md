@@ -10,7 +10,7 @@ My homelab is built upon a foundation of **Proxmox VE** for virtualization. Cent
 
 Beyond the TrueNAS instance, the current Proxmox setup includes:
 
-*   **A Control LXC Container:**
+*   [**A Control LXC Container:**](./control_lxc/README.md)
     *   **OS:** Debian 11 (Bullseye)
     *   **Role:** This container acts as a central management and routing point. It handles incoming requests, monitors the health of other VMs, and hosts various network-wide utility services.
 *   **Two Virtual Machines (VMs):**
@@ -35,15 +35,15 @@ The following utility services are deployed on most, if not all, virtualized env
 
 ### Services by Host
 
-#### Control LXC (`control-lxc`)
+#### [Control LXC](./control_lxc/README.md) (`control-lxc`)
 
 This LXC container is responsible for overall management, monitoring, and secure access:
 
-*   **Cloudflared:** Manages the secure tunnel to Cloudflare for exposing public services.
+*   [**Cloudflared:**](./control_lxc/cloudflared/cloudflared.md) Manages the secure tunnel to Cloudflare for exposing public services.
 *   **Homepage:** A simple, customizable dashboard to access all homelab services.
-*   **Nginx Proxy Manager (NPM):** Manages reverse proxying, SSL certificates (Let's Encrypt), and custom domain routing for services, particularly those exposed via Cloudflared.
-*   **Portainer CE (Main Instance):** Docker container management UI for all Docker hosts.
-*   **Tailscale:** Provides secure VPN access to the LXC and potentially acts as a subnet router or exit node for the homelab network.
+*   [**Nginx Proxy Manager (NPM):**](./control_lxc/npm/npm.md) Manages reverse proxying, SSL certificates (Let's Encrypt), and custom domain routing for services, particularly those exposed via Cloudflared.
+*   [**Portainer CE (Main Instance):**](./control_lxc/README.md#3-portainer-installation) Docker container management UI for all Docker hosts.
+*   [**Tailscale:**](./control_lxc/tailscale/tailscale.md) Provides secure VPN access to the LXC and potentially acts as a subnet router or exit node for the homelab network.
 *   **Uptime Kuma:** Monitors the availability of all critical services.
 
 #### `cf_vm` (Cloudflare Exposed VM)
@@ -68,4 +68,4 @@ This homelab is an evolving project. Future additions currently planned include:
 *   A **Torrenting Stack** (e.g., qBittorrent with Gluetun for VPN).
 *   The **\*Arr Stack** (Sonarr, Radarr, Lidarr, Prowlarr, etc.) for media management.
 
-As mentioned, constructive feedback, suggestions for alternative configurations, or ideas for new services are always welcome. Please feel free to open an issue or submit a pull request if you have ideas for improvement.
+As mentioned, constructive feedback, suggestions for alternative configurations, or ideas for new services are always welcome.

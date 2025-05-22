@@ -1,0 +1,15 @@
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${TOKEN}
+    networks:
+      - proxy_net_external
+
+networks:
+  proxy_net_external:
+    name: proxy_net # npm proxy network
+    external: true
