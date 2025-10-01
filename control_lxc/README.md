@@ -10,7 +10,7 @@ This guide outlines the steps to deploy services within this LXC container. Whil
 4.  [Nginx Proxy Manager Installation](./npm/npm.md)
 5.  [Cloudflared Installation](./cloudflared/cloudflared.md)
 6.  [Tailscale Installation](./tailscale/tailscale.md)
-7.  [Other Services Installation](./README.md#other-services)
+7.  [Other Services Installation](#7-other-services-installation)
 
 
 
@@ -256,3 +256,12 @@ All subsequent services in this guide will be deployed as Docker stacks using Po
 ## [4. Nginx Proxy Manager](./npm/npm.md)
 ## [5. Cloudflared](./cloudflared/cloudflared.md)
 ## [6. Tailscale](./tailscale/tailscale.md)
+
+## 7. Other Services Installation
+
+At this point, you can choose to setup the other two VMs and deploy those services directly. The rest of this guide will install:
+
+1. [Watchtower](./watchtower/watchtower.md): a service that updates all containers
+2. Glances: Hardware monitor
+3. Uptime Kuma: Services monitor
+4. Homepage: Dashboard for your homelab

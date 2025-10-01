@@ -10,7 +10,7 @@ Cloudflared creates a secure tunnel from Cloudflare's edge to services running i
 4.  [Nginx Proxy Manager Installation](../npm/npm.md)
 5.  [Cloudflared Installation](../cloudflared/cloudflared.md)
 6.  [Tailscale Installation](../tailscale/tailscale.md)
-7.  [Other Services Installation](./README.md#other-services)
+7.  [Other Services Installation](../README.md#7-other-services-installation)
 
 ### 1. Prerequisites
 
@@ -18,17 +18,20 @@ Cloudflared creates a secure tunnel from Cloudflare's edge to services running i
 
 ### 2. Cloudflare Dashboard Configuration
 
-1.  **Enable "Always Use HTTPS":**
+1. **Encryption Mode:**
+    *   Cloudflare Dashboard -> Your Domain -> SSL/TLS -> Select the encryption mode that you want. I went with Full.
+
+2.  **Enable "Always Use HTTPS":**
     *   Cloudflare Dashboard -> Your Domain -> SSL/TLS -> Edge Certificates -> Enable "Always Use HTTPS".
 
-2.  **Block Countries/Regions (Optional):**
+3.  **Block Countries/Regions (Optional):**
     *   Cloudflare Dashboard -> Your Domain -> Security -> Security rules -> Create a custom rule.
     *   **Name:** e.g., "Block Undesired Regions".
     *   **Field:** Country.
     *   **Operator:** `is in`.
     *   **Value:** Select the countries to block, then **Action:** Block.
     *   Alternatively, create an "Allow" rule for specific countries and block others.
-3.  **Configure Authentication (Example: Google):**
+4.  **Configure Authentication (Example: Google):**
     *   This enables stronger authentication for the tunnel.
     *   Cloudflare Dashboard -> Zero Trust -> Settings -> Authentication.
     *   Click "Add new" for Login Methods and follow the guide for your chosen provider (e.g., Google).
