@@ -17,13 +17,16 @@ While the services are listed in a suggested order, you can choose to install an
     *   [Deploying the Docker Stack](#43-deploying-the-docker-stack)
 5.  [Service-Specific Configurations](#5-service-specific-configurations)
     *   [NextCloud](#51-nextcloud)
-    *   [Paperless NGX](#52-paperless-ngx)
+    *   [Paperless-ngx](#52-paperless-ngx)
     *   [Gluetun (VPN Client)](#53-gluetun-vpn-client)
     *   [SearXNG](#54-searxng)
     *   [OpenWebUI](#55-openwebui)
 6.  [Post-Deployment Steps](#6-post-deployment-steps)
     *   [Firewall Configuration](#61-firewall-configuration)
     *   [Nginx Proxy Manager Setup](#62-nginx-proxy-manager-setup)
+    *   [Cloudflare Configuration](#63-cloudflare-configuration)
+        *   [Add Public Hostnames to the Tunnel](#631-add-public-hostnames-to-the-tunnel)
+        *   [Add Hostnames to Your Access Application](#632-add-hostnames-to-your-access-application)
 
 ---
 
@@ -125,6 +128,10 @@ The Portainer Agent allows your primary Portainer instance to manage this VM's D
 3.  **Start Wizard:** Select **"Docker Standalone"** as the environment type and click **"Start Wizard"**.
 4.  **Get Command:** Select the **Agent** option. Portainer will display a `docker run` command. Copy this command.
 5.  **Run Command in VM:** Paste and run the copied command in your new Debian VM's terminal.
+6.  **Firewall:** Add the following rule to allow connection from the Control LXC.
+```bash
+sudo ufw allow from <CONTROL_LXC_IP> to any port 9001 proto tcp comment 'Portainer Agent from Control LXC'
+```
 6.  **Connect Environment:** Back in the Portainer UI, fill in the environment details:
     *   **Name:** Give it a descriptive name (e.g., `Cloudflared-VM`).
     *   **Environment address:** Enter the IP address of your Debian VM followed by the agent port (e.g., `<CF_VM_IP>:9001`).
@@ -229,3 +236,77 @@ SearXNG is a metasearch engine that aggregates results from other search service
 OpenWebUI provides a user-friendly, ChatGPT-style web interface for interacting with various local and cloud-based Large Language Models (LLMs).
 
 *   **Port:** Set the desired external port to access the service. No other special configuration is typically needed to get started.
+
+## 6. Post-Deployment Steps
+
+With the services running, the final stage is to configure the network path to make them securely accessible from the internet. The flow of traffic will be:
+
+**Internet → Cloudflare Tunnel → Nginx Proxy Manager → Service Container**
+
+### 6.1. Firewall Configuration
+
+First, configure the firewall on the Debian VM to accept incoming connections *from* your Nginx Proxy Manager (NPM) instance. This allows NPM to forward requests to the correct service.
+
+On the **Debian VM where your services are running**, execute the following commands. Replace `<CONTROL_LXC_IP>` with the IP address of the container running NPM and `<SERVICE_PORT>` with the port you assigned in the Docker Compose file.
+
+```bash
+# Allow traffic from Nginx Proxy Manager to your services
+sudo ufw allow from <CONTROL_LXC_IP> to any port <NEXTCLOUD_PORT> proto tcp comment 'Allow NPM to NextCloud'
+sudo ufw allow from <CONTROL_LXC_IP> to any port <PAPERLESS_PORT> proto tcp comment 'Allow NPM to Paperless'
+sudo ufw allow from <CONTROL_LXC_IP> to any port <SEARXNG_PORT> proto tcp comment 'Allow NPM to SearXNG'
+sudo ufw allow from <CONTROL_LXC_IP> to any port <OPENWEBUI_PORT> proto tcp comment 'Allow NPM to OpenWebUI'
+
+# Reload the firewall to apply the new rules
+sudo ufw reload
+```
+
+### 6.2. Nginx Proxy Manager Setup
+
+Next, for each service you want to expose, create a "Proxy Host" in NPM. This tells NPM where to send incoming requests based on the domain name.
+
+Repeat these steps for every service (NextCloud, Paperless, etc.):
+
+1.  **Access NPM:** Navigate to your NPM web UI (e.g., `http://<CONTROL_LXC_IP>:81`).
+2.  **Add Proxy Host:** Go to **Hosts -> Proxy Hosts** and click **"Add Proxy Host"**.
+3.  **Details Tab:**
+    *   **Domain Names:** Enter the full public domain for the service (e.g., `nextcloud.yourdomain.com`).
+    *   **Scheme:** Leave this as `http`.
+    *   **Forward Hostname / IP:** Enter the IP address of your **new Debian VM** (e.g., `<CLOUDFLARED_VM_IP>`).
+    *   **Forward Port:** Enter the port assigned to the service (e.g., `<NEXTCLOUD_PORT>`).
+    *   Enable **Block Common Exploits** and **Websockets Support**.
+4.  **SSL Tab:**
+    *   **SSL Certificate:** Select your wildcard certificate (e.g., `*.yourdomain.com`).
+    *   Enable **Force SSL** and **HTTP/2 Support**.
+5.  **Save:** Click **"Save"**.
+
+### 6.3. Cloudflare Configuration
+
+Finally, configure your Cloudflare Zero Trust dashboard to route traffic for your new services through the tunnel and protect them with an access policy. Ensure that you have setup Cloudflared and established the Tunnels in [this guide](../control_lxc/cloudflared/cloudflared.md).
+
+#### 6.3.1. Add Public Hostnames to the Tunnel
+
+First, you need to tell the tunnel which subdomains to listen for and where to send the traffic (to your NPM instance).
+
+1.  Navigate to the **Zero Trust Dashboard -> Networks -> Tunnels**.
+2.  Select your tunnel and click **"Configure"**.
+3.  Select the **Public Hostnames** tab and click **"Add a public hostname"**.
+4.  Create a new entry for **each service**. For NextCloud, the configuration would be:
+    *   **Subdomain:** `nextcloud`
+    *   **Domain:** Select `yourdomain.com`.
+    *   **Service Type:** `HTTPS`
+    *   **URL:** `https://<CONTROL_LXC_IP>:443`. This must point to your NPM instance, as it is the entry point for all tunnel traffic.
+5.  **Save** the hostname. Repeat this process for `paperless`, `searxng`, and any other services.
+
+#### 6.3.2. Add Hostnames to Your Access Application
+
+Defining the hostname makes it routable, but adding it to an "Application" is what secures it with your access policies (e.g., requiring a login).
+
+1.  In the **Zero Trust Dashboard**, go to **Access -> Applications**.
+2.  Find the application that protects your self-hosted services and click **"Edit"**.
+3.  Navigate to the **"Self-hosted"** tab (or wherever your domain is configured).
+4.  In the **"Application Domain"** section, add the new subdomains you just configured in the tunnel (e.g., `nextcloud.yourdomain.com`, `paperless.yourdomain.com`).
+5.  **Save** the application.
+
+Now, when you try to access `https://nextcloud.yourdomain.com`, you will be prompted with the Cloudflare Access login screen before your request is passed to NPM and then to your service. The corresponding DNS records will be created automatically in your main Cloudflare dashboard.
+
+
