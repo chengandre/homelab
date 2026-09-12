@@ -202,6 +202,17 @@ NextCloud is a self-hosted productivity platform, offering functionality similar
 *   **Storage:** Verify that the volume mapping points to your mounted NFS share (e.g., `/mnt/truenas/nextcloud`).
 *   **Database Credentials:** Set the `MYSQL_PASSWORD`, `MYSQL_USER`, `MYSQL_DATABASE`, and `MY_SQL_HOST` environment variables for the NextCloud database. We will be hosting the Dataset in the TrueNAS VM, thus the host corresponds to <TRUENAS_IP>:<MYSQL_PORT>.
 
+There are some additional configuration steps that you will need to do:
+
+*   In your Cloudflared VM terminal, cd to your mounted NextCloud Storage, e.g. `/mnt/truenas/nextcloud/`, you might need root permission to do this, thus you can do `su -` first. Under the NextCloud directory do `nano config/config.php`.
+*   Under trusted domains, add the domains that you will be using to access NextCloud, e.g. `nextcloud.yourdomain.com`. Also add this domain to `overwrite.cli.url`.
+*   Append this following line `'overwriteprotocol' => 'https',`, if you don't have it already.
+*   You can also add these two lines to remove some warning in NextCloud, adjust the variables:
+```
+    'default_phone_region' => '<PHONE_REGION>',
+    'default_timezone' => '<TIMEZONE>',
+```
+
 ### 5.2 Paperless-ngx
 
 Paperless-ngx is a powerful document management system that transforms your physical documents into a searchable digital archive.

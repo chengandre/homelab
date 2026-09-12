@@ -89,7 +89,7 @@ services:
       WATCHTOWER_NOTIFICATION_JSON: true
       WATCHTOWER_NOTIFICATION_URL: ${WT_NOTIF_URL}
       WATCHTOWER_NOTIFICATIONS: shoutrrr
-      TZ: ${UZ}
+      TZ: ${TZ}
 
   sxng_redis:
     container_name: redis
