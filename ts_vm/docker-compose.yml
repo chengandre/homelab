@@ -1,0 +1,102 @@
+services:
+  immich-server:
+    container_name: immich_server
+    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
+    volumes:
+      - ${UPLOAD_LOCATION}:/usr/src/app/upload
+      - /etc/localtime:/etc/localtime:ro
+    env_file:
+      - stack.env
+    ports:
+      - '${IMMICH_PORT}:2283'
+    depends_on:
+      - redis
+    restart: always
+    healthcheck:
+      disable: false
+    networks:
+      - immich-network
+
+  immich-machine-learning:
+    container_name: immich_machine_learning
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
+    volumes:
+      - ${MODEL_CACHE_LOCATION}:/cache
+    env_file:
+      - stack.env
+    restart: always
+    healthcheck:
+      disable: false
+    networks:
+      - immich-network
+
+  redis:
+    container_name: immich_redis
+    image: docker.io/valkey/valkey:8-bookworm@sha256:42cba146593a5ea9a622002c1b7cba5da7be248650cbb64ecb9c6c33d29794b1
+    healthcheck:
+      test: redis-cli ping || exit 1
+    restart: always
+    networks:
+      - immich-network
+
+
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    volumes:
+      - ${VW_DATA_LOCATION}:/data
+    ports:
+      - "${VW_PORT}:80"
+    environment:
+      WEBSOCKET_ENABLED: "true"
+
+      SIGNUPS_ALLOWED: "false"
+
+      TZ: ${TZ}
+
+      PUID: ${VW_UID}
+      PGID: ${VW_GID}
+
+      DOMAIN: ${VW_DOMAIN}
+
+  syncthing:
+    image: lscr.io/linuxserver/syncthing:latest
+    container_name: syncthing
+    hostname: immich-syncthing
+    env_file:
+      - stack.env
+    volumes:
+      # Config folder for Syncthing's database/settings
+      - ${SYNCTHING_CONFIG_LOCATION}:/config
+      - ${SYNCTHING_LOCATION}:/data/immich
+    ports:
+      - '${SYNCTHING_GUI_PORT}:8384'       # Web GUI
+      - '${SYNCTHING_SYNC_PORT}:22000/tcp' # Sync protocol
+      - '${SYNCTHING_SYNC_PORT}:22000/udp' # Sync protocol
+    restart: unless-stopped
+    networks:
+      - immich-network # Puts it on the same internal network if needed
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower_localdebian
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_SCHEDULE: 0 0 9 * * *
+      WATCHTOWER_NOTIFICATION_REPORT: true
+      WATCHTOWER_INCLUDE_RESTARTING: true
+      WATCHTOWER_INCLUDE_STOPPED: true
+      WATCHTOWER_REVIVE_STOPPED: false
+      WATCHTOWER_NOTIFICATION_JSON: true
+      WATCHTOWER_NOTIFICATION_URL: ${WT_NOTIF_URL}
+      WATCHTOWER_NOTIFICATIONS: shoutrrr
+      TZ: ${TZ}
+
+
+networks:
+  immich-network: # Network for Immich internal components
+    driver: bridge
