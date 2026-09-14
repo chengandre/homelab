@@ -1,8 +1,8 @@
 # Service Deployment Guide: Tailscale VM
 
-This Debian 12 VM runs Docker directly and is managed by the Control LXC's Portainer CE instance through the Portainer Agent. Its services are accessed through Tailscale. A separate Nginx Proxy Manager (NPM) instance runs on this VM and routes Tailscale requests.
+This Debian 12 VM runs Docker directly and is managed by the Control LXC's Portainer CE instance through the Portainer Agent. Tailscale is installed locally on `ts_vm`. Optional DNS-only CNAME records in Cloudflare give the services convenient domain names pointing to this VM's Tailscale hostname. Clients connect over Tailscale to a separate Nginx Proxy Manager (NPM) instance on this VM, which forwards requests to the hosted services.
 
-For VM creation, Debian configuration, Docker installation, Portainer Agent setup, and the general NFS mounting workflow, follow the [CF VM guide](../cf_vm/README.md#1-proxmox-vm-creation). Use TS VM-specific names, shares, and ports. The CF VM's public Cloudflare routing steps do not apply here.
+For VM creation, Debian configuration, Docker installation, Portainer Agent setup, and the general NFS mounting workflow, follow the [CF VM guide](../cf_vm/README.md#1-proxmox-vm-creation). Use TS VM-specific names, shares, and ports. For TS service domains, use this VM's Tailscale IP and its own NPM instance rather than the CF VM route through NPM on `control_lxc`.
 
 **Table of Contents:**
 
@@ -15,6 +15,7 @@ For VM creation, Debian configuration, Docker installation, Portainer Agent setu
    * [Docker Stack](#43-deploying-the-docker-stack)
 5. [Service-Specific Configurations](#5-service-specific-configurations)
 6. [Post-Deployment Steps](#6-post-deployment-steps)
+   * [Optional Cloudflare DNS Names](#61-optional-cloudflare-dns-names)
 
 ---
 
@@ -146,4 +147,29 @@ The library mount intentionally allows both reads and writes. Keep it writable f
 
 ## 6. Post-Deployment Steps
 
-The separate NPM instance on this VM routes Tailscale requests to the hosted services. Use each service's configured domain when accessing it from a device on the tailnet.
+Tailscale runs locally on `ts_vm`. With the optional DNS records below, name resolution and service access work as follows:
+
+* **DNS:** `photos.<YOUR_DOMAIN>` or `vw.<YOUR_DOMAIN>` → CNAME to `<TS_VM_TAILSCALE_HOSTNAME>` → TS VM Tailscale IP.
+* **Connection:** Authorized client connected to Tailscale → NPM on `ts_vm` → Immich or Vaultwarden.
+
+Cloudflare supplies the DNS record; the client sends service traffic over Tailscale to NPM. These DNS-only records do not make the services publicly accessible. The client must be connected to Tailscale, able to resolve the VM's Tailscale hostname, and permitted to reach NPM by the tailnet's access rules. NPM uses the requested service domain to select the appropriate proxy host.
+
+### 6.1 Optional Cloudflare DNS Names
+
+These records make client URLs easier to remember. Before adding them, join `ts_vm` and the client to your tailnet and configure the TS VM's NPM proxy hosts for Immich and Vaultwarden. Each proxy host must use the same domain you add below and forward to its service's configured port (`IMMICH_PORT` or `VW_PORT`). For HTTPS, NPM needs a certificate covering the chosen service domain; the CNAME does not configure a certificate.
+
+1. **Obtain the Tailscale Hostname:** In the **Tailscale admin console → Machines**, open the entry for `ts_vm` and copy its full DNS name, in the form `<DEVICE_NAME>.<TAILNET_NAME>.ts.net`. Use that name as `<TS_VM_TAILSCALE_HOSTNAME>` below; do not substitute the VM's LAN address or include `https://`, a port, or a path. Enable **MagicDNS** in the tailnet's **DNS** settings and allow the client to use Tailscale DNS settings. See [Tailscale MagicDNS](https://tailscale.com/docs/features/magicdns).
+2. **Add the Immich Record:** In the **Cloudflare dashboard**, select your domain, open **DNS → Records**, and click **Add record**. Enter:
+
+   | Field | Value |
+   |---|---|
+   | Type | **CNAME** |
+   | Name | Your desired subdomain, for example `photos` |
+   | Target | `<TS_VM_TAILSCALE_HOSTNAME>` |
+   | Proxy status | **DNS only** (grey cloud) |
+   | TTL | **Auto** |
+
+   Replace the target with the hostname copied in Step 1, then click **Save**. With the example name, the Immich URL is `https://photos.<YOUR_DOMAIN>`. Replace `<YOUR_DOMAIN>` with your Cloudflare-managed domain. Keep the record **DNS only** so clients connect directly over Tailscale. See [Cloudflare record creation](https://developers.cloudflare.com/dns/manage-dns-records/how-to/create-dns-records/) and [proxy status](https://developers.cloudflare.com/dns/proxy-status/).
+3. **Add the Vaultwarden Record:** Click **Add record** again. Use **CNAME**, your desired **Name**, for example `vw`, the same **Target** `<TS_VM_TAILSCALE_HOSTNAME>`, **DNS only**, and **TTL: Auto**. Save. With this example, enter `vw.<YOUR_DOMAIN>` as the Vaultwarden NPM proxy-host domain and `https://vw.<YOUR_DOMAIN>` as the stack's `VW_DOMAIN` value.
+4. **Verify the Records:** Reopen both records and confirm their subdomain names, identical Tailscale hostname targets, **DNS only** status, and **Auto** TTL. In the **TS VM NPM web interface → Hosts → Proxy Hosts**, confirm each full domain matches its service's proxy host and HTTPS certificate.
+5. **Test from a Tailscale Client:** Connect your client to the tailnet and open `https://photos.<YOUR_DOMAIN>` and `https://vw.<YOUR_DOMAIN>` in its browser. Expect the Immich and Vaultwarden interfaces respectively, with valid HTTPS certificates for those domains. If a name does not resolve, check that the client can resolve `<TS_VM_TAILSCALE_HOSTNAME>` and uses Tailscale DNS settings. If NPM's default page appears, check the proxy-host domain; if the upstream fails, check its destination and service port.
