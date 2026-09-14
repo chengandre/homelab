@@ -146,9 +146,9 @@ This section covers the preparation of storage and the deployment of the service
 
 ### 4.1 Preparing NFS Shares in TrueNAS
 
-Nextcloud and Paperless use NFS-backed application storage. Prepare their datasets, storage accounts, permissions and exports on **TrueNAS**, following the storage organization in the [TrueNAS guide](../truenas/README.md#3-cf-vm). Record each export path from **Shares → NFS** and use the CF VM's LAN address, `<CF_VM_IP>`, for client access.
+Nextcloud and Paperless use NFS-backed application storage. Prepare the [Nextcloud dataset](../truenas/README.md#312-mass-storage-dataset) and [Paperless dataset](../truenas/README.md#321-mass-storage-dataset), with their storage accounts and permissions, on **TrueNAS**. Create the [Nextcloud NFS share](../truenas/README.md#313-nfs-share) and [Paperless NFS share](../truenas/README.md#322-nfs-share), each allowing `<CF_VM_IP>/32` with its service-specific Maproot user/group and Mapall unset. Record each export path from **Shares → NFS** and use the CF VM's LAN address, `<CF_VM_IP>`, for client access.
 
-Nextcloud's database is separate: complete the [MariaDB dataset and application deployment](../truenas/README.md#311-mariadb-dataset-and-deployment) before deploying the CF stack. Database files remain on TrueNAS, not on the VM's NFS mounts.
+Nextcloud and Paperless share the MariaDB application on TrueNAS, using different database names and database users. Complete the [MariaDB dataset and application deployment](../truenas/README.md#311-mariadb-dataset-and-deployment) before deploying the CF stack, then set each application's connection values. Database files remain on TrueNAS, not on the VM's NFS mounts.
 
 ### 4.2 Mounting NFS Shares in the Debian VM
 
@@ -181,11 +181,29 @@ To make the TrueNAS datasets available to Docker, mount them within the Debian V
     findmnt -T /mnt/truenas/nextcloud
     findmnt -T /mnt/truenas/paperless
     ```
-    Expect filesystem type `nfs` or `nfs4` and the corresponding TrueNAS export as the source. A local root filesystem means the share is not mounted. Check the application's numeric user/group access before starting containers; do not start the stack against unmounted directories.
+    Expect filesystem type `nfs` or `nfs4` and the corresponding TrueNAS export as the source. A local root filesystem means the share is not mounted. Do not start the stack against unmounted directories.
+5. **Prepare Paperless Directories:** After confirming the Paperless NFS mount, in the **CF VM terminal**, create ordinary directories within it:
+
+   ```bash
+   sudo mkdir -p /mnt/truenas/paperless/data /mnt/truenas/paperless/media
+   sudo chown <PAPERLESS_UID>:<PAPERLESS_GID> /mnt/truenas/paperless/data /mnt/truenas/paperless/media
+   sudo chmod 750 /mnt/truenas/paperless/data /mnt/truenas/paperless/media
+   ```
+
+   Replace the numeric ID placeholders with the separate values obtained in [TrueNAS Paperless setup](../truenas/README.md#321-mass-storage-dataset). These commands prepare new directories; do not recursively change existing files. Verify both paths:
+
+   ```bash
+   findmnt -T /mnt/truenas/paperless/data
+   findmnt -T /mnt/truenas/paperless/media
+   ls -ldn /mnt/truenas/paperless/data /mnt/truenas/paperless/media
+   ```
+
+   Both paths should be backed by the same Paperless NFS export, with the recorded UID/GID and mode `drwxr-x---`. Compose maps them to `/usr/src/paperless/data` and `/usr/src/paperless/media`, respectively.
+
 
 ### 4.3 Deploying the Docker Stack
 
-Before deploying Nextcloud, complete the [MariaDB dataset and application setup on TrueNAS](../truenas/README.md#311-mariadb-dataset-and-deployment).
+Before deploying Nextcloud and Paperless, complete the [MariaDB dataset and application setup on TrueNAS](../truenas/README.md#311-mariadb-dataset-and-deployment).
 
 1. **Prepare Private Values:** On your workstation, save a copy of the [environment template](./.env.example) as `.env` and replace every `<...>` placeholder using [Section 5](#5-service-specific-configurations). Keep this file private. The CF-specific ignore rule excludes `cf_vm/.env` from new Git additions.
 2. **Prepare Local Directories:** In the **CF VM terminal**, set the same absolute `VM_CONFIG_ROOT` used in your private environment file, for example `/home/alex` if your Debian username is `alex`. Replace `alex` with your username in the command below and use the same path in the environment file. Create the directories:
@@ -253,7 +271,7 @@ Paperless-ngx is a powerful document management system that transforms your phys
 *   **Storage:** Ensure the volume paths for `data` and `media` are correctly mapped to your Paperless NFS share.
 *   **UID/GID:** In the **TrueNAS shell**, run `id <PAPERLESS_STORAGE_USER>`, substituting the storage account that owns the Paperless files. Record its UID and primary GID separately as `PAPERLESS_UID` and `PAPERLESS_GID` in the stack environment. Compose passes them as `USERMAP_UID` and `USERMAP_GID`. Use those same numeric IDs for the VM's local export and consume directories.
 *   **URL:** Set the `PAPERLESS_URL` variable to the domain you will use to access it.
-*   **Database Credentials:** Set `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASS` and `DB_NAME` from the Paperless database configuration. Compose maps them to the corresponding `PAPERLESS_DB*` container variables. Use the Paperless application account; Nextcloud's MariaDB credentials do not establish the Paperless connection.
+*   **Database Credentials:** Paperless uses the same TrueNAS MariaDB server as Nextcloud. Follow the [TrueNAS Paperless connection mapping](../truenas/README.md#323-mariadb-connection): set `DB_HOST=<TRUENAS_IP>` and `DB_PORT=<PUBLISHED_MARIADB_PORT>`, then set `DB_USER`, `DB_PASS` and `DB_NAME` from the Paperless database configuration. Compose maps them to the corresponding `PAPERLESS_DB*` container variables. Use the Paperless application account; Nextcloud's MariaDB credentials do not establish the Paperless connection.
 
 ### 5.3 Gluetun (VPN Client)
 

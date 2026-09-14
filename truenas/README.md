@@ -16,6 +16,12 @@ TrueNAS provides persistent storage and hosts database applications for services
 3. [CF VM](#3-cf-vm)
    * [Nextcloud](#31-nextcloud)
      * [MariaDB Dataset and Deployment](#311-mariadb-dataset-and-deployment)
+     * [Mass-Storage Dataset](#312-mass-storage-dataset)
+     * [NFS Share](#313-nfs-share)
+   * [Paperless-ngx](#32-paperless-ngx)
+     * [Mass-Storage Dataset](#321-mass-storage-dataset)
+     * [NFS Share](#322-nfs-share)
+     * [MariaDB Connection](#323-mariadb-connection)
 
 ---
 
@@ -36,7 +42,7 @@ Immich's library and machine-learning cache share one mass-storage dataset and N
 
 #### 2.1.1 Mass-Storage Dataset
 
-1. **Create the Storage User:** In the **TrueNAS web interface → Credentials → Users → Add**, enter your desired **Full Name**, for example `Immich`, and **Username**, for example `immich`. Select **Create New Primary Group** to create a group matching your chosen username, then save the account. Choose an available UID; authentication and home-directory options are described in the [TrueNAS 24.10 user guide](https://www.truenas.com/docs/scale/24.10/scaletutorials/credentials/managelocalusersscale/).
+1. **Create the Storage User:** In the **TrueNAS web interface → Credentials → Users → Add**, enter your desired **Full Name**, for example `Immich`, and **Username**, for example `immich`. Select **Create New Primary Group** to create a group matching your chosen username, choose an available UID, then save the account. This account supplies filesystem ownership and numeric IDs for application access.
 2. **Record the IDs:** In the **TrueNAS shell**, run:
 
    ```bash
@@ -145,7 +151,7 @@ Vaultwarden's persistent data lives in its own mass-storage dataset and writable
 
 #### 2.2.1 Persistent Dataset
 
-1. **Create the Storage User:** In the **TrueNAS web interface → Credentials → Users → Add**, enter your desired **Full Name**, for example `Vaultwarden`, and **Username**, for example `vaultwar`. Select **Create New Primary Group** to create a group matching your chosen username, then save the account. Choose an available UID; authentication and home-directory options are described in the [TrueNAS 24.10 user guide](https://www.truenas.com/docs/scale/24.10/scaletutorials/credentials/managelocalusersscale/).
+1. **Create the Storage User:** In the **TrueNAS web interface → Credentials → Users → Add**, enter your desired **Full Name**, for example `Vaultwarden`, and **Username**, for example `vaultwar`. Select **Create New Primary Group** to create a group matching your chosen username, choose an available UID, then save the account. This account supplies filesystem ownership and numeric IDs for application access.
 2. **Record the IDs:** In the **TrueNAS shell**, run:
 
    ```bash
@@ -175,13 +181,15 @@ After mounting storage, continue with [Vaultwarden configuration on TS VM](../ts
 
 ## 3. CF VM
 
-Database applications on TrueNAS provide persistent database storage for services on `cf_vm`. Complete the relevant database setup before deploying the [CF VM Docker stack](../cf_vm/README.md#43-deploying-the-docker-stack).
+TrueNAS provides NFS-backed application storage and database applications for services on `cf_vm`. Complete the relevant database setup before deploying the [CF VM Docker stack](../cf_vm/README.md#43-deploying-the-docker-stack).
 
 ### 3.1 Nextcloud
 
 Nextcloud runs on `cf_vm` and connects to MariaDB on TrueNAS. Its application files use the VM's mounted storage; MariaDB's database files remain local to the SSD pool on TrueNAS.
 
 #### 3.1.1 MariaDB Dataset and Deployment
+
+One MariaDB application on TrueNAS serves both Nextcloud and Paperless on `cf_vm`, each with its own database name and database user. Deploy the dataset and application once; Paperless reuses this server through its [database connection settings](#323-mariadb-connection). The initialization variables below create one application database/account on a fresh server, not both applications' database configurations.
 
 1. **Create the Database Dataset:** In the **TrueNAS web interface → Datasets**, select your SSD pool's database parent dataset, for example `<SSD_POOL>/DB`, and click **Add Dataset**. Enter your desired **Name**, for example `MariaDB`. Its example host path is `/mnt/<SSD_POOL>/DB/MariaDB`.
 2. **Set Dataset Properties:** In **Advanced Options**, choose properties for your storage needs. This deployment uses **Sync: Standard**, **Compression: Inherit (LZ4)**, **Atime: Off**, **Deduplication: Off**, and case-sensitive names. Save, then reopen the dataset to verify its path and properties.
@@ -268,3 +276,78 @@ Nextcloud runs on `cf_vm` and connects to MariaDB on TrueNAS. Its application fi
    Replace the placeholders with the values from Step 7 and enter that user's password when prompted. Expect the chosen database name.
 
 Return to [Nextcloud configuration on CF VM](../cf_vm/README.md#51-nextcloud) to configure its connection and check application access.
+
+#### 3.1.2 Mass-Storage Dataset
+
+Nextcloud's application files use one mass-storage dataset, mounted at `/mnt/truenas/nextcloud` on `cf_vm` and mapped to `/var/www/html` in the container. MariaDB files remain in the separate SSD-backed database dataset.
+
+1. **Identify the Storage Account:** In the **TrueNAS shell**, run:
+
+   ```bash
+   id www-data
+   ```
+
+   Record the account's UID and primary GID separately. In the **TrueNAS web interface → Credentials → Users**, locate `www-data`; this account is used for filesystem ownership.
+2. **Create the Dataset:** In **TrueNAS → Datasets**, select the existing mass-storage parent for this VM, for example `<MASS_STORAGE_POOL>/cf_vm`, and click **Add Dataset**. Enter your desired **Name**, for example `Nextcloud`. Select **Generic** as **Dataset Preset** for the Unix permissions below.
+3. **Set Dataset Properties:** In **Advanced Options**, choose properties for your storage needs. This setup uses **Sync: Standard**, **Compression: Inherit (LZ4)**, **Atime: Off**, **Deduplication: Off**, and case-sensitive names. Save the dataset.
+4. **Assign Ownership and Permissions:** Select the dataset and open **Permissions → Edit**. Set **User** and **Group** to `www-data`, select **Apply User** and **Apply Group**, and give both **User** and **Group** read, write and execute. Give **Other** no permissions. Save. This is Unix mode **770**; apply these settings to the new dataset without recursively changing existing application files.
+5. **Optionally Limit Storage:** In **Dataset Space Management → Edit**, choose a quota if you want to cap storage usage, or leave it unset. Dataset quotas and user/group quotas are separate settings.
+6. **Verify the Dataset:** Reopen it and confirm its path, `www-data:www-data` ownership, Unix mode **770**, properties and any quota you configured.
+
+Create the [Nextcloud NFS share](#313-nfs-share), then continue with [CF VM mounting](../cf_vm/README.md#42-mounting-nfs-shares-in-the-debian-vm). The example TrueNAS path `/mnt/<MASS_STORAGE_POOL>/cf_vm/Nextcloud` becomes `/mnt/truenas/nextcloud` on the VM; [Nextcloud Compose](../cf_vm/docker-compose.yml) maps that VM path to `/var/www/html`.
+
+#### 3.1.3 NFS Share
+
+1. **Add the Share:** In **TrueNAS → Shares → NFS**, click **Add**. Select the Nextcloud dataset you created as **Path**, for example `/mnt/<MASS_STORAGE_POOL>/cf_vm/Nextcloud`.
+2. **Configure Access:** Leave **Description** empty, check **Enabled**, and leave **Read Only** unchecked. Set **Maproot User** and **Maproot Group** to `www-data`. Leave **Mapall User** and **Mapall Group** unset, and leave **Security** without an explicit selection.
+3. **Restrict the Client:** Under **Networks → Add**, enter `<CF_VM_IP>` with prefix length **32**. Replace the placeholder with the CF VM's LAN IPv4 address; `/32` selects that single client. Maproot maps client root requests to `www-data`; it does not map every application's user as Mapall would.
+4. **Verify the Share:** Save, reopen the share, and confirm its dataset path, enabled and writable state, `<CF_VM_IP>/32` client entry, `www-data:www-data` Maproot and unset Mapall.
+
+Continue with [CF VM NFS mounting](../cf_vm/README.md#42-mounting-nfs-shares-in-the-debian-vm), mounting this export at `/mnt/truenas/nextcloud`. Verify the export source before [deploying Nextcloud](../cf_vm/README.md#43-deploying-the-docker-stack).
+
+### 3.2 Paperless-ngx
+
+Paperless connects to the same TrueNAS MariaDB application as Nextcloud. Its database files remain in the shared MariaDB SSD dataset. Paperless uses one mass-storage dataset mounted at `/mnt/truenas/paperless` on `cf_vm`. Its `data` and `media` directories live within that dataset. Export and consume directories remain local to the VM in the [CF stack configuration](../cf_vm/README.md#43-deploying-the-docker-stack).
+
+#### 3.2.1 Mass-Storage Dataset
+
+1. **Create the Storage User:** In **TrueNAS → Credentials → Users → Add**, enter your desired **Full Name**, for example `Paperless`, and **Username**, for example `paperless`. Select **Create New Primary Group**, choose an available UID, and save. This account supplies filesystem ownership and numeric IDs for Paperless.
+2. **Record the IDs:** In the **TrueNAS shell**, run:
+
+   ```bash
+   id paperless
+   ```
+
+   Substitute your chosen username. Record its UID as `<PAPERLESS_UID>` and its primary GID as `<PAPERLESS_GID>`; do not assume they are equal. Use these as stack `PAPERLESS_UID` and `PAPERLESS_GID`, which Compose passes as `USERMAP_UID` and `USERMAP_GID`.
+3. **Create the Dataset:** In **TrueNAS → Datasets**, select the existing mass-storage parent for this VM, for example `<MASS_STORAGE_POOL>/cf_vm`, and click **Add Dataset**. Enter your desired **Name**, for example `Paperless`, and select **Generic** as **Dataset Preset**.
+4. **Set Dataset Properties:** In **Advanced Options**, choose properties for your storage needs. This setup uses **Sync: Standard**, **Compression: Inherit (LZ4)**, **Atime: Off**, **Deduplication: Off**, and case-sensitive names. Save.
+5. **Assign Ownership and Permissions:** Select the dataset and open **Permissions → Edit**. Set **User** and **Group** to the storage account and group you created (`paperless` in these examples). Select **Apply User** and **Apply Group**. Give **User** read, write and execute; **Group** read and execute; and **Other** no permissions. Save. This is Unix mode **750**, applied to the new dataset without recursively modifying existing files.
+6. **Optionally Limit Storage:** In **Dataset Space Management → Edit**, choose a quota to cap storage usage if desired, or leave it unset. User/group quotas are separate settings.
+7. **Verify the Dataset:** Reopen it and confirm its path, ownership by the storage user/group, Unix mode **750**, properties and any configured quota.
+
+Create the [Paperless NFS share](#322-nfs-share) and continue with [CF VM mounting and directory preparation](../cf_vm/README.md#42-mounting-nfs-shares-in-the-debian-vm). The example export path `/mnt/<MASS_STORAGE_POOL>/cf_vm/Paperless` is mounted at `/mnt/truenas/paperless`. Create ordinary `data` and `media` directories inside the VM mount and assign them the recorded IDs before starting Paperless. The [CF guide](../cf_vm/README.md#52-paperless-ngx) retains database connection and application settings.
+
+
+#### 3.2.2 NFS Share
+
+1. **Add the Share:** In **TrueNAS → Shares → NFS**, click **Add**. Select the Paperless dataset you created as **Path**, for example `/mnt/<MASS_STORAGE_POOL>/cf_vm/Paperless`. Export the whole application dataset so the VM can access its `data` and `media` directories through one mount.
+2. **Configure Access:** Leave **Description** empty, check **Enabled**, and leave **Read Only** unchecked. Set **Maproot User** and **Maproot Group** to the storage account and group you created (`paperless` in these examples). Leave **Mapall User** and **Mapall Group** unset, and leave **Security** without an explicit selection.
+3. **Restrict the Client:** Under **Networks → Add**, enter `<CF_VM_IP>` with prefix length **32**, using the CF VM's LAN IPv4 address. Maproot maps client root requests to the Paperless storage account; other users still need the appropriate numeric ownership and permissions.
+4. **Verify the Share:** Save, reopen it, and confirm the whole Paperless dataset path, enabled and writable state, `<CF_VM_IP>/32` client entry, storage-account Maproot and unset Mapall.
+
+Continue with [CF VM NFS mounting and Paperless directory preparation](../cf_vm/README.md#42-mounting-nfs-shares-in-the-debian-vm). Mount the single export at `/mnt/truenas/paperless`, then create `data` and `media` inside that mount. Both directories should resolve to this same NFS source; configure stack `PAPERLESS_UID` and `PAPERLESS_GID` with the IDs recorded during dataset setup.
+
+
+#### 3.2.3 MariaDB Connection
+
+Reuse the [MariaDB dataset and application deployment](#311-mariadb-dataset-and-deployment); do not deploy a second server or export its database files through NFS. Configure the existing Paperless database and account in the [CF VM stack environment](../cf_vm/README.md#52-paperless-ngx):
+
+| Stack variable | Value source | Container variable |
+|---|---|---|
+| `DB_HOST` | `<TRUENAS_IP>`, the same MariaDB server used by Nextcloud | `PAPERLESS_DBHOST` |
+| `DB_PORT` | `<PUBLISHED_MARIADB_PORT>`, the MariaDB application's host port | `PAPERLESS_DBPORT` |
+| `DB_NAME` | Database name configured for Paperless | `PAPERLESS_DBNAME` |
+| `DB_USER` | Database account configured for Paperless | `PAPERLESS_DBUSER` |
+| `DB_PASS` | Password for that account | `PAPERLESS_DBPASS` |
+
+Compose sets `PAPERLESS_DBENGINE=mariadb`. Use Paperless's own database name and database user, which differ from Nextcloud's. Obtain its account password from the Paperless database configuration. Return to [CF stack deployment](../cf_vm/README.md#43-deploying-the-docker-stack) after setting these values.
