@@ -186,6 +186,8 @@ To make the TrueNAS datasets available to Docker, mount them within the Debian V
 
 ### 4.3 Deploying the Docker Stack
 
+Before deploying Nextcloud, complete the [MariaDB dataset and application setup on TrueNAS](../truenas/README.md#311-mariadb-dataset-and-deployment).
+
 You can now deploy all services using a single Docker Compose file within a Portainer Stack. In Portainer, go to your new environment, select **Stacks**, and click **"Add stack"**. Paste your Docker Compose configuration into the web editor.
 
 ---
@@ -200,7 +202,17 @@ NextCloud is a self-hosted productivity platform, offering functionality similar
 
 *   **Port:** Set your desired external port for accessing the NextCloud web UI.
 *   **Storage:** Verify that the volume mapping points to your mounted NFS share (e.g., `/mnt/truenas/nextcloud`).
-*   **Database Credentials:** Set the `MYSQL_PASSWORD`, `MYSQL_USER`, `MYSQL_DATABASE`, and `MY_SQL_HOST` environment variables for the NextCloud database. We will be hosting the Dataset in the TrueNAS VM, thus the host corresponds to <TRUENAS_IP>:<MYSQL_PORT>.
+
+Complete the [MariaDB deployment on TrueNAS](../truenas/README.md#311-mariadb-dataset-and-deployment) before starting Nextcloud. In the **CF VM Portainer stack environment**, set:
+
+| Stack variable | Value |
+|---|---|
+| `MYSQL_HOST` | `<TRUENAS_IP>:<PUBLISHED_MARIADB_PORT>` using the host port chosen in TrueNAS |
+| `MYSQL_DATABASE` | Database name entered as `MYSQL_DATABASE` in the MariaDB application |
+| `MYSQL_USER` | Application user entered as `MYSQL_USER` in the MariaDB application |
+| `MYSQL_PASS` | Password entered as `MYSQL_PASSWORD` in the MariaDB application |
+
+The Compose file passes `MYSQL_PASS` into Nextcloud as `MYSQL_PASSWORD`. The MariaDB root password stays with the database application. After stack deployment, inspect Nextcloud's container logs for database connection errors and confirm its web interface starts.
 
 There are some additional configuration steps that you will need to do:
 

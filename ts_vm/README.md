@@ -11,7 +11,7 @@ For VM creation, Debian configuration, Docker installation, Portainer Agent setu
 3. [Docker and Portainer Agent Installation](#3-docker-and-portainer-agent-installation)
 4. [Service Deployment](#4-service-deployment)
    * [TrueNAS Storage](#41-preparing-and-mounting-truenas-storage)
-   * [Immich Database on TrueNAS](#42-deploying-the-immich-database-on-truenas)
+   * [Immich Database Connection](#42-configuring-the-immich-database-connection)
    * [Docker Stack](#43-deploying-the-docker-stack)
 5. [Service-Specific Configurations](#5-service-specific-configurations)
 6. [Post-Deployment Steps](#6-post-deployment-steps)
@@ -34,18 +34,17 @@ Follow the [Docker and Portainer Agent installation steps](../cf_vm/README.md#3-
 
 ### 4.1 Preparing and Mounting TrueNAS Storage
 
-1. **Prepare Shares:** Use the [TrueNAS notes](../truenas/README.md) and the [existing NFS workflow](../cf_vm/README.md#41-preparing-nfs-shares-in-truenas) as references.
+1. **Prepare Shares:** Complete the TrueNAS [Immich dataset and NFS setup](../truenas/README.md#211-mass-storage-dataset) and [Vaultwarden dataset and NFS setup](../truenas/README.md#221-persistent-dataset). The Immich library and model cache are within one dataset, with the example export path `/mnt/<MASS_STORAGE_POOL>/ts_vm/Immich`. Vaultwarden has a separate example export at `/mnt/<MASS_STORAGE_POOL>/ts_vm/Vaultwarden`. Both exports allow `<TS_VM_IP>/32`, using this VM's LAN address.
 2. **Create Mount Points:** In the TS VM terminal, create the example mount points used by the template:
 
    ```bash
-   sudo mkdir -p /mnt/truenas/immich/library
-   sudo mkdir -p /mnt/truenas/immich/model-cache
+   sudo mkdir -p /mnt/truenas/immich
    sudo mkdir -p /mnt/truenas/vaultwarden
    ```
 
    Substitute your actual VM mount paths if they differ. Creating these directories does not mount the TrueNAS shares.
-3. **Mount Storage:** Follow the [Debian NFS mounting workflow](../cf_vm/README.md#42-mounting-nfs-shares-in-the-debian-vm) for the Immich library, machine-learning cache, and Vaultwarden data.
-4. **Check Paths:** Set the environment variables to the mounted paths on this VM. TrueNAS dataset paths and VM mount points are different paths.
+3. **Mount Storage:** Follow the [Debian NFS mounting workflow](../cf_vm/README.md#42-mounting-nfs-shares-in-the-debian-vm) for the Immich dataset and Vaultwarden dataset. Mount the Immich export at the example `/mnt/truenas/immich` and the Vaultwarden export at `/mnt/truenas/vaultwarden`, substituting your chosen VM mount points. Both Immich container paths must resolve within the mounted Immich dataset.
+4. **Check Paths:** Set the environment variables to the mounted paths on this VM. TrueNAS dataset paths and VM mount points are different paths. The template's `library` and `model-cache` directory names are examples; use the existing library and cache directories within the Immich mount.
 5. **Verify Mounts:** In the TS VM terminal, check the filesystem backing each path:
 
    ```bash
@@ -54,28 +53,14 @@ Follow the [Docker and Portainer Agent installation steps](../cf_vm/README.md#3-
    findmnt -T /mnt/truenas/vaultwarden
    ```
 
-   Each path should be backed by the intended TrueNAS NFS export, rather than the VM's local root filesystem. Confirm access using the application's actual user/group before starting containers.
+   The library and cache paths should both be backed by the Immich NFS export, and the Vaultwarden path by its own export, rather than the VM's local root filesystem. Confirm access using the application's actual user/group before starting containers.
 6. **Map Paths into Compose:** Set `UPLOAD_LOCATION`, `MODEL_CACHE_LOCATION`, and `VW_DATA_LOCATION` to these VM paths. Set `SYNCTHING_LOCATION` to its intended photo source directory and prepare `SYNCTHING_CONFIG_LOCATION` with the Syncthing user's ownership.
 
-### 4.2 Deploying the Immich Database on TrueNAS
+### 4.2 Configuring the Immich Database Connection
 
-Immich uses a PostgreSQL application running on TrueNAS, with its persistent database storage mapped to a dataset in the separate SSD pool. The VM connects to the application's published port; the database is not part of the VM's Compose stack.
+Complete the [Immich PostgreSQL dataset and deployment on TrueNAS](../truenas/README.md#213-postgresql-dataset-and-deployment) first. The database runs on TrueNAS and is separate from the VM's Compose stack.
 
-1. **Create the Database Dataset:** In TrueNAS, select the SSD pool and create the dataset that will hold Immich's PostgreSQL data. Use the [existing dataset creation workflow](../cf_vm/README.md#41-preparing-nfs-shares-in-truenas) for navigation. Use permissions appropriate to the database application's user; the photo-library NFS permissions apply to a different dataset.
-2. **Configure the Custom Application:** Use the TrueNAS custom application deployment form. In its **Image Configuration**, set:
-
-   | Field | Configured value |
-   |---|---|
-   | Repository | `ghcr.io/immich-app/postgres` |
-   | Tag | `14-vectorchord0.3.0-pgvectors0.2.0` |
-   | Pull Policy | Pull only if the image is not already present on the host |
-
-   Check compatibility with the Immich version you deploy before changing the database image.
-3. **Set Database Environment:** Configure the database application's initialization environment with your database name, user, and password. The VM's `DB_*` variables are connection settings and do not configure the TrueNAS application.
-4. **Map Persistent Storage:** Map `<SSD_POOL_DATABASE_DATASET_PATH>` to the database application's configured container data path. This mapping is local to TrueNAS; it is separate from mounting photo-library shares on the VM.
-5. **Publish the Database Port:** Configure the application's port mapping and use the published TrueNAS port for connections from the VM. Use the published port for `DB_PORT` on the VM.
-6. **Start and Verify the Database:** Deploy the application and inspect its status and PostgreSQL logs.
-7. **Configure the VM Connection:** Set these values in the TS VM stack environment:
+1. **Configure the VM Connection:** Set these values in the TS VM stack environment:
 
    | VM variable | Value source |
    |---|---|
@@ -85,7 +70,7 @@ Immich uses a PostgreSQL application running on TrueNAS, with its persistent dat
    | `DB_PASSWORD` | That user's password |
    | `DB_DATABASE_NAME` | Immich database name |
 
-8. **Verify Application Access:** After deploying the VM stack, inspect Immich's logs for a successful database connection and confirm its web interface starts.
+2. **Verify Application Access:** After deploying the VM stack, inspect Immich's logs for a successful database connection and confirm its web interface starts.
 
 ### 4.3 Deploying the Docker Stack
 
@@ -111,7 +96,7 @@ Below are the environment variables and storage settings specific to this VM.
 
 Immich provides photo and video storage. Its media library lives on TrueNAS's mass-storage pool and is mounted on this VM. The machine-learning cache also lives on TrueNAS and is bind-mounted into the container; no Docker named volume is needed.
 
-Complete the [TrueNAS database setup](#42-deploying-the-immich-database-on-truenas) before deploying Immich. General pool architecture is described in the [TrueNAS guide](../truenas/README.md).
+Complete the [TrueNAS database setup](../truenas/README.md#213-postgresql-dataset-and-deployment) before deploying Immich. General pool architecture is described in the [TrueNAS guide](../truenas/README.md).
 
 Configure:
 
