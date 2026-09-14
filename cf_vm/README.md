@@ -205,7 +205,7 @@ To make the TrueNAS datasets available to Docker, mount them within the Debian V
 
 Before deploying Nextcloud and Paperless, complete the [MariaDB dataset and application setup on TrueNAS](../truenas/README.md#311-mariadb-dataset-and-deployment).
 
-1. **Prepare Private Values:** On your workstation, save a copy of the [environment template](./.env.example) as `.env` and replace every `<...>` placeholder using [Section 5](#5-service-specific-configurations). Keep this file private. The CF-specific ignore rule excludes `cf_vm/.env` from new Git additions.
+1. **Prepare Private Values:** On your workstation, save a copy of the [environment template](./.env.example) as `.env` and replace every `<...>` placeholder using [Section 5](#5-service-specific-configurations). Keep this file private.
 2. **Prepare Local Directories:** In the **CF VM terminal**, set the same absolute `VM_CONFIG_ROOT` used in your private environment file, for example `/home/alex` if your Debian username is `alex`. Replace `alex` with your username in the command below and use the same path in the environment file. Create the directories:
 
    ```bash

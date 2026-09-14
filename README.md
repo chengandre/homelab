@@ -4,7 +4,7 @@ This repository serves as a comprehensive documentation hub for my personal home
 
 ## Core Architecture
 
-My homelab is built upon a foundation of **Proxmox VE** for virtualization. Centralized storage is managed by **TrueNAS**, utilizing **ZFS** with a **RAID-Z2** configuration for data redundancy and integrity. A key principle of this setup is that persistent data for all hosted services is stored on TrueNAS datasets and made available to the virtualized environments via **NFS shares**.
+My homelab is built upon a foundation of **Proxmox VE** for virtualization. Centralized storage is managed by **TrueNAS**, utilizing **ZFS** with a **RAID-Z2** configuration for data redundancy and integrity. Large application data is stored on TrueNAS datasets and made available to the virtualized environments via **NFS shares**. Database data uses the separate SSD pool on TrueNAS. Some service configuration, Docker volumes, and Paperless export and consume directories remain local to the VMs.
 
 ## Virtualized Environments
 
