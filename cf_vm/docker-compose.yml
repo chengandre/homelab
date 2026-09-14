@@ -37,8 +37,8 @@ services:
     volumes:
       - open-webui:/app/backend/data
     environment:
-      - PUID=1001
-      - PGID=1001
+      - PUID=${OPENWEBUI_UID}
+      - PGID=${OPENWEBUI_GID}
       - TZ=${TZ}
 
   broker:
@@ -58,8 +58,8 @@ services:
     volumes:
       - /mnt/truenas/paperless/data:/usr/src/paperless/data
       - /mnt/truenas/paperless/media:/usr/src/paperless/media
-      - /home/user/paperless/export:/usr/src/paperless/export
-      - /home/user/paperless/consume:/usr/src/paperless/consume
+      - ${VM_CONFIG_ROOT}/paperless/export:/usr/src/paperless/export
+      - ${VM_CONFIG_ROOT}/paperless/consume:/usr/src/paperless/consume
     environment:
       PAPERLESS_URL: ${PAPERLESS_URL}
       PAPERLESS_REDIS: redis://broker:6379
@@ -69,8 +69,8 @@ services:
       PAPERLESS_DBPASS: ${DB_PASS}
       PAPERLESS_DBPORT: ${DB_PORT}
       PAPERLESS_DBNAME: ${DB_NAME}
-      USERMAP_UID: 3004 # Maps to the right userId from TrueNAS
-      USERMAP_GID: 3004
+      USERMAP_UID: ${PAPERLESS_UID}
+      USERMAP_GID: ${PAPERLESS_GID}
       PAPERLESS_TIME_ZONE: ${TZ}
 
   watchtower:
@@ -117,7 +117,7 @@ services:
     network_mode: "service:gluetun"
     restart: unless-stopped
     volumes:
-      - /home/user/searxng:/etc/searxng:rw
+      - ${VM_CONFIG_ROOT}/searxng:/etc/searxng:rw
     environment:
       - SEARXNG_BASE_URL=https://${SEARXNG_HOSTNAME:-localhost}/
       - UWSGI_WORKERS=${SEARXNG_UWSGI_WORKERS:-4}
@@ -139,7 +139,7 @@ services:
     cap_add:
       - NET_ADMIN
     volumes:
-      - /home/user/gluetun:/gluetun
+      - ${VM_CONFIG_ROOT}/gluetun:/gluetun
     devices:
       - /dev/net/tun:/dev/net/tun
     ports:
@@ -149,8 +149,8 @@ services:
     environment:
       - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER} # nordvpn
       - VPN_TYPE=openvpn # openvpn or wireguard
-      - OPENVPN_USER=${NORD_USER}
-      - OPENVPN_PASSWORD=${NORD_PASS}
+      - OPENVPN_USER=${OPENVPN_USER}
+      - OPENVPN_PASSWORD=${OPENVPN_PASSWORD}
       - SERVER_COUNTRIES=${VPN_COUNTRY}
       - SERVER_CITIES=${VPN_CITY}
       - TZ=${TZ}

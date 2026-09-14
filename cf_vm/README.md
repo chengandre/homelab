@@ -2,7 +2,7 @@
 
 This guide provides a comprehensive walkthrough for setting up a Debian 12 Virtual Machine (VM) in Proxmox. It covers the initial VM creation, system configuration, and the deployment of various services using Docker.
 
-The architecture assumes that a central Portainer instance is running elsewhere (e.g., in a control LXC) to manage this VM's Docker environment via the Portainer Agent. Additionally, this guide leverages a TrueNAS server for persistent data storage via NFS shares.
+The architecture assumes that a central Portainer instance is running elsewhere (e.g., in a control LXC) to manage this VM's Docker environment via the Portainer Agent. Nextcloud and Paperless use TrueNAS NFS storage, with external databases configured separately. Docker named volumes and local configuration directories remain on `cf_vm`.
 
 While the services are listed in a suggested order, you can choose to install any component independently.
 
@@ -16,11 +16,12 @@ While the services are listed in a suggested order, you can choose to install an
     *   [Mounting NFS Shares in the Debian VM](#42-mounting-nfs-shares-in-the-debian-vm)
     *   [Deploying the Docker Stack](#43-deploying-the-docker-stack)
 5.  [Service-Specific Configurations](#5-service-specific-configurations)
-    *   [NextCloud](#51-nextcloud)
+    *   [Nextcloud](#51-nextcloud)
     *   [Paperless-ngx](#52-paperless-ngx)
     *   [Gluetun (VPN Client)](#53-gluetun-vpn-client)
     *   [SearXNG](#54-searxng)
     *   [OpenWebUI](#55-openwebui)
+    *   [Watchtower](#56-watchtower)
 6.  [Post-Deployment Steps](#6-post-deployment-steps)
     *   [Firewall Configuration](#61-firewall-configuration)
     *   [Nginx Proxy Manager Setup](#62-nginx-proxy-manager-setup)
@@ -40,7 +41,7 @@ Before proceeding, ensure you have the appropriate VM template downloaded onto y
 
 2.  **General Tab:**
     *   **VM ID:** Assign a unique ID for the VM (e.g., `102`).
-    *   **Name:** Define a descriptive name for the VM (e.g., `cloudflared-vm`).
+    *   **Name:** Define a descriptive name for the VM (e.g., `cf_vm`).
 
 3.  **OS Tab:**
     *   **Storage:** Select the storage location where your ISO images are stored.
@@ -51,7 +52,7 @@ Before proceeding, ensure you have the appropriate VM template downloaded onto y
     *   You can leave these settings at their default values.
 
 5.  **Disks Tab:**
-    *   **Disk Size:** A minimal Debian installation without a GUI does not require extensive disk space. Since services requiring large amounts of storage (like NextCloud) will use NFS shares from TrueNAS, **32 GB** is sufficient.
+    *   **Disk Size:** A minimal Debian installation without a GUI does not require extensive disk space. Since services requiring large amounts of storage (like Nextcloud) will use NFS shares from TrueNAS, **32 GB** is sufficient.
 
 6.  **CPU Tab:**
     *   **Cores:** **4 cores** is a reasonable starting point, adjust as needed based on workload.
@@ -123,7 +124,7 @@ sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin 
 
 The Portainer Agent allows your primary Portainer instance to manage this VM's Docker environment.
 
-1.  **Access Portainer UI:** Navigate to your central Portainer instance (e.g., `https://<LXC_IP>:9443`).
+1.  **Access Portainer UI:** Navigate to your central Portainer instance (e.g., `https://<CONTROL_LXC_IP>:9443`).
 2.  **Add Environment:** From the left menu, select **Environments** and click the **"Add environment"** button.
 3.  **Start Wizard:** Select **"Docker Standalone"** as the environment type and click **"Start Wizard"**.
 4.  **Get Command:** Select the **Agent** option. Portainer will display a `docker run` command. Copy this command.
@@ -132,10 +133,10 @@ The Portainer Agent allows your primary Portainer instance to manage this VM's D
 ```bash
 sudo ufw allow from <CONTROL_LXC_IP> to any port 9001 proto tcp comment 'Portainer Agent from Control LXC'
 ```
-6.  **Connect Environment:** Back in the Portainer UI, fill in the environment details:
-    *   **Name:** Give it a descriptive name (e.g., `Cloudflared-VM`).
+7.  **Connect Environment:** Back in the Portainer UI, fill in the environment details:
+    *   **Name:** Give it a descriptive name (e.g., `cf_vm`).
     *   **Environment address:** Enter the IP address of your Debian VM followed by the agent port (e.g., `<CF_VM_IP>:9001`).
-7.  Click **"Connect"**. You can now manage this VM from your central Portainer dashboard.
+8.  Click **"Connect"**. You can now manage this VM from your central Portainer dashboard.
 
 ---
 
@@ -145,16 +146,9 @@ This section covers the preparation of storage and the deployment of the service
 
 ### 4.1 Preparing NFS Shares in TrueNAS
 
-For each service that requires significant storage, a corresponding dataset and NFS share should be created in TrueNAS.
+Nextcloud and Paperless use NFS-backed application storage. Prepare their datasets, storage accounts, permissions and exports on **TrueNAS**, following the storage organization in the [TrueNAS guide](../truenas/README.md#3-cf-vm). Record each export path from **Shares → NFS** and use the CF VM's LAN address, `<CF_VM_IP>`, for client access.
 
-**General Workflow:**
-
-1.  **Create Dataset:** In the TrueNAS UI, go to **Datasets**. Create a parent dataset for this VM (e.g., `CloudflaredVM`). Inside it, create a child dataset for each service (e.g., `NextCloud`, `Paperless`).
-2.  **Set Permissions:** For each dataset, click **Edit Permissions**. Assign ownership to a specific user. For some services like Paperless, it's best to create a dedicated user in TrueNAS (**Credentials -> Local Users**) and use their UID/GID. For others like NextCloud, use the standard `www-data` user.
-3.  **Create NFS Share:** Go to **Sharing -> NFS Shares** and click **Add**.
-    *   Select the path to the service's dataset.
-    *   In **Authorized Networks**, you can restrict access to the VM's IP address for security (e.g., `<CLOUDFLARED_VM_IP>/32`).
-    *   In **Advanced Options**, you may need to map users (e.g., Map Root User/Group to `www-data` or `paperless`).
+Nextcloud's database is separate: complete the [MariaDB dataset and application deployment](../truenas/README.md#311-mariadb-dataset-and-deployment) before deploying the CF stack. Database files remain on TrueNAS, not on the VM's NFS mounts.
 
 ### 4.2 Mounting NFS Shares in the Debian VM
 
@@ -162,33 +156,59 @@ To make the TrueNAS datasets available to Docker, mount them within the Debian V
 
 1.  **Create Mount Points:** Create a local directory for each share. It's good practice to organize them:
     ```bash
-    mkdir -p /mnt/truenas/nextcloud
-    mkdir -p /mnt/truenas/paperless
+    sudo mkdir -p /mnt/truenas/nextcloud
+    sudo mkdir -p /mnt/truenas/paperless
     ```
 2.  **Configure Automatic Mounts:** Edit the `/etc/fstab` file to ensure the shares are mounted automatically on boot.
     ```bash
     sudo nano /etc/fstab
     ```
-    Append a line for each NFS share using the following format:
+    Append a line for each NFS share using the following format. Replace `<TRUENAS_IP>` with the TrueNAS LAN address and the example export paths with the full paths recorded in **TrueNAS → Shares → NFS**. The example below uses `192.168.1.10` for TrueNAS and datasets under `tank/cf_vm`; substitute your server address, pool and dataset names:
     ```
     # Format: <TRUENAS_IP>:<PATH_TO_DATASET> <LOCAL_MOUNT_POINT> nfs defaults,rw,hard,auto,nofail 0 0
 
     # Example:
-    192.168.1.100:/mnt/pool1/CloudflaredVM/NextCloud /mnt/truenas/nextcloud nfs defaults,rw,hard,auto,nofail 0 0
-    192.168.1.100:/mnt/pool1/CloudflaredVM/Paperless /mnt/truenas/paperless nfs defaults,rw,hard,auto,nofail 0 0
+    192.168.1.10:/mnt/tank/cf_vm/Nextcloud /mnt/truenas/nextcloud nfs defaults,rw,hard,auto,nofail 0 0
+    192.168.1.10:/mnt/tank/cf_vm/Paperless /mnt/truenas/paperless nfs defaults,rw,hard,auto,nofail 0 0
     ```
 3.  **Mount the Shares:** Reload the systemd manager and mount all entries in `fstab`.
     ```bash
     sudo systemctl daemon-reload
     sudo mount -a
     ```
-4.  **Verify:** Run `df -h` to confirm that the NFS shares have been mounted successfully.
+4.  **Verify:** In the **CF VM terminal**, run:
+    ```bash
+    findmnt -T /mnt/truenas/nextcloud
+    findmnt -T /mnt/truenas/paperless
+    ```
+    Expect filesystem type `nfs` or `nfs4` and the corresponding TrueNAS export as the source. A local root filesystem means the share is not mounted. Check the application's numeric user/group access before starting containers; do not start the stack against unmounted directories.
 
 ### 4.3 Deploying the Docker Stack
 
 Before deploying Nextcloud, complete the [MariaDB dataset and application setup on TrueNAS](../truenas/README.md#311-mariadb-dataset-and-deployment).
 
-You can now deploy all services using a single Docker Compose file within a Portainer Stack. In Portainer, go to your new environment, select **Stacks**, and click **"Add stack"**. Paste your Docker Compose configuration into the web editor.
+1. **Prepare Private Values:** On your workstation, save a copy of the [environment template](./.env.example) as `.env` and replace every `<...>` placeholder using [Section 5](#5-service-specific-configurations). Keep this file private. The CF-specific ignore rule excludes `cf_vm/.env` from new Git additions.
+2. **Prepare Local Directories:** In the **CF VM terminal**, set the same absolute `VM_CONFIG_ROOT` used in your private environment file, for example `/home/alex` if your Debian username is `alex`. Replace `alex` with your username in the command below and use the same path in the environment file. Create the directories:
+
+   ```bash
+   VM_CONFIG_ROOT=/home/alex
+   sudo mkdir -p "$VM_CONFIG_ROOT/paperless/export" "$VM_CONFIG_ROOT/paperless/consume"
+   sudo mkdir -p "$VM_CONFIG_ROOT/searxng" "$VM_CONFIG_ROOT/gluetun"
+   ```
+
+   These are local VM paths. Paperless `data` and `media` instead use `/mnt/truenas/paperless`; Nextcloud uses `/mnt/truenas/nextcloud`. Check each directory's ownership and configure access for its container user before deployment. For Paperless export and consume directories, use the storage account's separate numeric UID and GID:
+
+   ```bash
+   sudo chown <PAPERLESS_UID>:<PAPERLESS_GID> "$VM_CONFIG_ROOT/paperless/export" "$VM_CONFIG_ROOT/paperless/consume"
+   ```
+
+   Substitute the IDs obtained in [Paperless configuration](#52-paperless-ngx). Do not recursively change existing application data as part of this directory preparation.
+3. **Create the Stack:** In the **central Portainer UI**, select the `cf_vm` environment, open **Stacks → Add stack**, enter your desired stack name, and choose **Web editor**. Paste the [Compose file](./docker-compose.yml).
+4. **Load Variables:** Under **Environment variables**, choose **Load variables from .env file** and upload your private file, or enter the same names and values individually. Check that every placeholder has been replaced. Portainer substitutes `${VARIABLE}` entries in Compose; explicit service `environment` entries then pass the selected values into containers. This CF stack does not use `env_file: stack.env`. See [Portainer stack creation](https://docs.portainer.io/2.21/user/docker/stacks/add).
+5. **Review and Deploy:** Check [Section 5](#5-service-specific-configurations), database credentials, mounted storage, local directories and distinct available host ports. Click **Deploy the stack**.
+6. **Check Startup:** Open the stack's containers in Portainer and inspect status and logs. Expect services to remain running, without missing-variable, database-connection or storage-permission errors. Confirm each web interface responds at `http://<CF_VM_IP>:<PUBLISHED_PORT>` from an allowed client, then configure the proxy and domains in [Section 6](#6-post-deployment-steps). Initial accounts and service-specific setup are separate from container startup.
+
+OpenWebUI, Paperless Redis and SearXNG Valkey use Docker named volumes on the VM. Include those volumes and the local `VM_CONFIG_ROOT` directories in the backup plan alongside TrueNAS data and external databases. Preserve the private environment values securely for recovery.
 
 ---
 
@@ -196,11 +216,11 @@ You can now deploy all services using a single Docker Compose file within a Port
 
 Below are the key environment variables and configurations to check for each service in your Docker Compose file.
 
-### 5.1 NextCloud
+### 5.1 Nextcloud
 
-NextCloud is a self-hosted productivity platform, offering functionality similar to Dropbox, Google Drive, and Office 365 for file sharing and collaboration.
+Nextcloud is a self-hosted productivity platform, offering functionality similar to Dropbox, Google Drive, and Office 365 for file sharing and collaboration.
 
-*   **Port:** Set your desired external port for accessing the NextCloud web UI.
+*   **Port:** Set your desired external port for accessing the Nextcloud web UI.
 *   **Storage:** Verify that the volume mapping points to your mounted NFS share (e.g., `/mnt/truenas/nextcloud`).
 
 Complete the [MariaDB deployment on TrueNAS](../truenas/README.md#311-mariadb-dataset-and-deployment) before starting Nextcloud. In the **CF VM Portainer stack environment**, set:
@@ -216,10 +236,10 @@ The Compose file passes `MYSQL_PASS` into Nextcloud as `MYSQL_PASSWORD`. The Mar
 
 There are some additional configuration steps that you will need to do:
 
-*   In your Cloudflared VM terminal, cd to your mounted NextCloud Storage, e.g. `/mnt/truenas/nextcloud/`, you might need root permission to do this, thus you can do `su -` first. Under the NextCloud directory do `nano config/config.php`.
-*   Under trusted domains, add the domains that you will be using to access NextCloud, e.g. `nextcloud.yourdomain.com`. Also add this domain to `overwrite.cli.url`.
+*   In your CF VM terminal, cd to your mounted Nextcloud Storage, e.g. `/mnt/truenas/nextcloud/`, you might need root permission to do this, thus you can do `su -` first. Under the Nextcloud directory do `nano config/config.php`.
+*   Under trusted domains, add the domains that you will be using to access Nextcloud, e.g. `nextcloud.<YOUR_DOMAIN>`. Also add this domain to `overwrite.cli.url`.
 *   Append this following line `'overwriteprotocol' => 'https',`, if you don't have it already.
-*   You can also add these two lines to remove some warning in NextCloud, adjust the variables:
+*   You can also add these two lines to remove some warning in Nextcloud, adjust the variables:
 ```
     'default_phone_region' => '<PHONE_REGION>',
     'default_timezone' => '<TIMEZONE>',
@@ -231,9 +251,9 @@ Paperless-ngx is a powerful document management system that transforms your phys
 
 *   **Port:** Set the external port for the web UI.
 *   **Storage:** Ensure the volume paths for `data` and `media` are correctly mapped to your Paperless NFS share.
-*   **UID/GID:** Set the `USERMAP_UID` and `USERMAP_GID` environment variables to match the UID and GID of the `paperless` user you created in TrueNAS. This is crucial for file permissions.
+*   **UID/GID:** In the **TrueNAS shell**, run `id <PAPERLESS_STORAGE_USER>`, substituting the storage account that owns the Paperless files. Record its UID and primary GID separately as `PAPERLESS_UID` and `PAPERLESS_GID` in the stack environment. Compose passes them as `USERMAP_UID` and `USERMAP_GID`. Use those same numeric IDs for the VM's local export and consume directories.
 *   **URL:** Set the `PAPERLESS_URL` variable to the domain you will use to access it.
-*   **Database Credentials:** Set the `DB_HOST`, `DB_USER`, `DB_PORT`, and `DB_NAME`. environment variables for the Paperless database. The database is also hosted in the TrueNAS VM.
+*   **Database Credentials:** Set `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASS` and `DB_NAME` from the Paperless database configuration. Compose maps them to the corresponding `PAPERLESS_DB*` container variables. Use the Paperless application account; Nextcloud's MariaDB credentials do not establish the Paperless connection.
 
 ### 5.3 Gluetun (VPN Client)
 
@@ -241,9 +261,9 @@ Gluetun is a versatile VPN client container that ensures other Docker containers
 
 *   **VPN Configuration:**
     *   Set `VPN_SERVICE_PROVIDER` (e.g., `nordvpn`).
-    *   Set `VPN_TYPE` (e.g., `openvpn` or `wireguard`).
-    *   Provide your `OPENVPN_USER` and `OPENVPN_PASSWORD`.
-    *   Specify a `SERVER_COUNTRIES` or `SERVER_CITIES`.
+    *   This Compose file sets container `VPN_TYPE=openvpn`.
+    *   Set stack `OPENVPN_USER` and `OPENVPN_PASSWORD` to your provider's OpenVPN service credentials. Obtain service credentials from your VPN provider, rather than using an assumed account password.
+    *   Set stack `VPN_COUNTRY` and `VPN_CITY` to provider-supported locations; Compose passes them as `SERVER_COUNTRIES` and `SERVER_CITIES`.
 *   **Ports:** The ports for any services routed through Gluetun (like SearXNG) must be published in Gluetun's `ports` section, not the service's own section.
 
 ### 5.4 SearXNG
@@ -251,14 +271,21 @@ Gluetun is a versatile VPN client container that ensures other Docker containers
 SearXNG is a metasearch engine that aggregates results from other search services while protecting user privacy.
 
 *   **Networking:** To route its traffic through the VPN, its `network_mode` is set to `service:gluetun`. You do not need to change this.
-*   **Port Access:** The access port for SearXNG is defined in the `ports` section of the **Gluetun** service.
+*   **Port Access:** Set `GLUETUN_PORT` to SearXNG's published CF VM port. Gluetun maps it to container port `8080`; use this same host port in NPM and firewall examples.
+*   **Public URL:** Set `SEARXNG_HOSTNAME` to `searxng.<YOUR_DOMAIN>`, without `https://` or a trailing slash. Compose constructs `SEARXNG_BASE_URL`. Worker and thread example values are `4`, matching the Compose defaults.
 *   **Storage:** Verify the volume path for its data is correct.
 
 ### 5.5 OpenWebUI
 
 OpenWebUI provides a user-friendly, ChatGPT-style web interface for interacting with various local and cloud-based Large Language Models (LLMs).
 
-*   **Port:** Set the desired external port to access the service. No other special configuration is typically needed to get started.
+*   **Port:** Set `OPENWEBUI_PORT` to its published CF VM port, mapped to container port `8080`.
+*   **IDs:** Set `OPENWEBUI_UID` and `OPENWEBUI_GID` to the intended numeric account IDs. In the **CF VM terminal**, use `id <VM_USER>` to obtain separate values for a selected Debian account. Compose passes these as `PUID` and `PGID`; verify the effective container user before changing existing volume ownership.
+*   **Persistent Data:** The `open-webui` Docker named volume maps to `/app/backend/data` on this VM.
+
+### 5.6 Watchtower
+
+Watchtower uses `WT_NOTIF_URL` for its Shoutrrr notification URL and `TZ` for the shared timezone. Obtain the URL using the [common Watchtower notification procedure](../control_lxc/watchtower/watchtower.md), using `WT_NOTIF_URL` in this stack. The configured schedule is 09:00 daily in that timezone; verify successful notifications and updates separately.
 
 ## 6. Post-Deployment Steps
 
@@ -268,15 +295,15 @@ With the services running, the final stage is to configure the network path to m
 
 ### 6.1. Firewall Configuration
 
-First, configure the firewall on the Debian VM to accept incoming connections *from* your Nginx Proxy Manager (NPM) instance. This allows NPM to forward requests to the correct service.
+Use the service host ports from the stack environment when configuring access from the Control LXC NPM instance. Docker published ports bypass UFW filtering, so the UFW rules below do not by themselves restrict container access to NPM. Apply restrictions using the deployed Docker firewall backend or an upstream firewall, following [Docker packet filtering guidance](https://docs.docker.com/engine/network/packet-filtering-firewalls/), and test access from both allowed and disallowed clients.
 
-On the **Debian VM where your services are running**, execute the following commands. Replace `<CONTROL_LXC_IP>` with the IP address of the container running NPM and `<SERVICE_PORT>` with the port you assigned in the Docker Compose file.
+On the **Debian VM where your services are running**, execute the following commands. Replace `<CONTROL_LXC_IP>` with the IP address of the container running NPM and each port placeholder with its matching stack environment value. `<GLUETUN_PORT>` is the SearXNG host port.
 
 ```bash
 # Allow traffic from Nginx Proxy Manager to your services
-sudo ufw allow from <CONTROL_LXC_IP> to any port <NEXTCLOUD_PORT> proto tcp comment 'Allow NPM to NextCloud'
+sudo ufw allow from <CONTROL_LXC_IP> to any port <NEXTCLOUD_PORT> proto tcp comment 'Allow NPM to Nextcloud'
 sudo ufw allow from <CONTROL_LXC_IP> to any port <PAPERLESS_PORT> proto tcp comment 'Allow NPM to Paperless'
-sudo ufw allow from <CONTROL_LXC_IP> to any port <SEARXNG_PORT> proto tcp comment 'Allow NPM to SearXNG'
+sudo ufw allow from <CONTROL_LXC_IP> to any port <GLUETUN_PORT> proto tcp comment 'Allow NPM to SearXNG'
 sudo ufw allow from <CONTROL_LXC_IP> to any port <OPENWEBUI_PORT> proto tcp comment 'Allow NPM to OpenWebUI'
 
 # Reload the firewall to apply the new rules
@@ -287,18 +314,18 @@ sudo ufw reload
 
 Next, for each service you want to expose, create a "Proxy Host" in NPM. This tells NPM where to send incoming requests based on the domain name.
 
-Repeat these steps for every service (NextCloud, Paperless, etc.):
+Repeat these steps for every service (Nextcloud, Paperless, etc.):
 
 1.  **Access NPM:** Navigate to your NPM web UI (e.g., `http://<CONTROL_LXC_IP>:81`).
 2.  **Add Proxy Host:** Go to **Hosts -> Proxy Hosts** and click **"Add Proxy Host"**.
 3.  **Details Tab:**
-    *   **Domain Names:** Enter the full public domain for the service (e.g., `nextcloud.yourdomain.com`).
+    *   **Domain Names:** Enter the full public domain for the service (e.g., `nextcloud.<YOUR_DOMAIN>`).
     *   **Scheme:** Leave this as `http`.
-    *   **Forward Hostname / IP:** Enter the IP address of your **new Debian VM** (e.g., `<CLOUDFLARED_VM_IP>`).
-    *   **Forward Port:** Enter the port assigned to the service (e.g., `<NEXTCLOUD_PORT>`).
+    *   **Forward Hostname / IP:** Enter the IP address of your **new Debian VM** (e.g., `<CF_VM_IP>`).
+    *   **Forward Port:** Enter the matching stack host port: `NEXTCLOUD_PORT`, `PAPERLESS_PORT`, `GLUETUN_PORT` for SearXNG, or `OPENWEBUI_PORT`.
     *   Enable **Block Common Exploits** and **Websockets Support**.
 4.  **SSL Tab:**
-    *   **SSL Certificate:** Select your wildcard certificate (e.g., `*.yourdomain.com`).
+    *   **SSL Certificate:** Select your wildcard certificate (e.g., `*.<YOUR_DOMAIN>`).
     *   Enable **Force SSL** and **HTTP/2 Support**.
 5.  **Save:** Click **"Save"**.
 
@@ -313,9 +340,9 @@ First, you need to tell the tunnel which subdomains to listen for and where to s
 1.  Navigate to the **Zero Trust Dashboard -> Networks -> Tunnels**.
 2.  Select your tunnel and click **"Configure"**.
 3.  Select the **Public Hostnames** tab and click **"Add a public hostname"**.
-4.  Create a new entry for **each service**. For NextCloud, the configuration would be:
+4.  Create a new entry for **each service**. For Nextcloud, the configuration would be:
     *   **Subdomain:** `nextcloud`
-    *   **Domain:** Select `yourdomain.com`.
+    *   **Domain:** Select `<YOUR_DOMAIN>`.
     *   **Service Type:** `HTTPS`
     *   **URL:** `https://<CONTROL_LXC_IP>:443`. This must point to your NPM instance, as it is the entry point for all tunnel traffic.
 5.  **Save** the hostname. Repeat this process for `paperless`, `searxng`, and any other services.
@@ -327,9 +354,9 @@ Defining the hostname makes it routable, but adding it to an "Application" is wh
 1.  In the **Zero Trust Dashboard**, go to **Access -> Applications**.
 2.  Find the application that protects your self-hosted services and click **"Edit"**.
 3.  Navigate to the **"Self-hosted"** tab (or wherever your domain is configured).
-4.  In the **"Application Domain"** section, add the new subdomains you just configured in the tunnel (e.g., `nextcloud.yourdomain.com`, `paperless.yourdomain.com`).
+4.  In the **"Application Domain"** section, add the new subdomains you just configured in the tunnel (e.g., `nextcloud.<YOUR_DOMAIN>`, `paperless.<YOUR_DOMAIN>`).
 5.  **Save** the application.
 
-Now, when you try to access `https://nextcloud.yourdomain.com`, you will be prompted with the Cloudflare Access login screen before your request is passed to NPM and then to your service. The corresponding DNS records will be created automatically in your main Cloudflare dashboard.
+Now, when you try to access `https://nextcloud.<YOUR_DOMAIN>`, you will be prompted with the Cloudflare Access login screen before your request is passed to NPM and then to your service. The corresponding DNS records will be created automatically in your main Cloudflare dashboard.
 
 
