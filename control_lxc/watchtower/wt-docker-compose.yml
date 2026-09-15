@@ -36,4 +36,4 @@ services:
 
       WATCHTOWER_NOTIFICATION_URL: ${DISCORD_URL}
       WATCHTOWER_NOTIFICATIONS: shoutrrr
-      TZ: Europe/London
+      TZ: ${TZ}

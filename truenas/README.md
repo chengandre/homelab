@@ -99,7 +99,7 @@ The TrueNAS PostgreSQL application uses a database dataset on the SSD pool, moun
    | Pull Policy | Pull the image if it is not already present on the host |
 
    Use a database image compatible with your Immich release. The tag above records this deployment; check your release's database requirements before choosing another tag.
-5. **Configure the Container:** In **Container Configuration**, leave **Hostname** empty and add no **Entrypoint** or **Command** overrides. Choose your **Timezone**, for example **Europe/Lisbon**, and set **Restart Policy** to **Unless Stopped**. Leave **Disable Builtin Healthcheck**, **TTY**, and **Stdin** unchecked, and add no devices.
+5. **Configure the Container:** In **Container Configuration**, leave **Hostname** empty and add no **Entrypoint** or **Command** overrides. Choose your **Timezone** and set **Restart Policy** to **Unless Stopped**. Leave **Disable Builtin Healthcheck**, **TTY**, and **Stdin** unchecked, and add no devices.
 6. **Add Initialization Variables:** In the form's environment-variable list, add one entry for each variable:
 
    | Variable | Value to enter | Purpose |

@@ -150,7 +150,7 @@ The Compose configuration disables signups.
 
 ### 5.3 Watchtower
 
-Watchtower runs on this VM and uses `WT_NOTIF_URL` for notifications and `TZ` for its timezone. Its schedule is 09:00 daily in that timezone. See the [Watchtower guide](../control_lxc/watchtower/watchtower.md) for the common notification workflow; use this VM's variable name.
+Watchtower runs as part of this VM stack and monitors containers on `ts_vm` through its Docker socket. Set `WT_NOTIF_URL` to the private Shoutrrr Discord value from the [Watchtower guide](../control_lxc/watchtower/watchtower.md), and set `TZ` for the desired IANA timezone. Its schedule is 09:00 daily in that timezone; verify notification delivery and updates separately.
 
 ### 5.4 Syncthing and Google Pixel 1 Photo Backup
 

@@ -1,6 +1,6 @@
 # Watchtower
 
-Watchtower monitors your running Docker containers and automatically updates them to the latest image version available. This helps keep your services up-to-date with new features and security patches.
+Watchtower monitors Docker containers on the host where it runs and automatically updates them to the latest image version available. This repository runs one Watchtower instance on the Control LXC and one inside each VM stack; each instance controls only the Docker host whose socket it mounts.
 
 ---
 
@@ -31,7 +31,7 @@ If you want Watchtower to send notifications to a Discord channel when it update
     *   Give your webhook a descriptive name (e.g., "Watchtower Updates").
     *   Choose the channel where notifications should be posted.
     *   Click **"Copy Webhook URL"**. This URL will look like: `https://discord.com/api/webhooks/<channel>/<token>`.
-4.  **Save the Webhook URL:** Store this URL securely; you will need it for Watchtower's configuration.
+4.  **Create the Shoutrrr value:** Convert the webhook to Watchtower's `discord://<token>@<channel>` format and store it securely. The Control LXC uses the `DISCORD_URL` stack variable; the `cf_vm` and `ts_vm` stacks use `WT_NOTIF_URL`.
 
 ---
 
@@ -39,9 +39,10 @@ If you want Watchtower to send notifications to a Discord channel when it update
 
 **Steps:**
 
-1.  Create a new stack in Portainer and assign it a name of your choice
-2.  Copy the content from [Watchtower Docker Compose file](./wt-docker-compose.yml) and paste it into Portainer's **Web editor**.
-3.  **For Discord Notifications:** Add the environment variable `WATCHTOWER_NOTIFICATION_URL`. Convert the copied Discord Webhook URL to Watchtower's `discord://<token>@<channel>` format, then enter the result. See the [Watchtower notification documentation](https://containrrr.dev/watchtower/notifications/) for the format.
-4.  **Deploy the Stack:**
+1.  **Open Portainer:** In the central Portainer UI, select the Control LXC environment and open **Stacks → Add stack**.
+2.  **Create the stack:** Enter a stack name, choose **Web editor**, and paste the [Watchtower Compose file](./wt-docker-compose.yml).
+3.  **Prepare variables:** Copy [`.env.example`](./.env.example) to a private `.env` file. Set `DISCORD_URL` to the Shoutrrr value if notifications are enabled and set `TZ` to your chosen IANA timezone. Under **Environment variables**, choose **Load variables from .env file** and upload that private file.
+4.  **Deploy the stack:** Click **Deploy the stack**. The Compose file mounts the Control LXC Docker socket, so this instance monitors containers on the Control LXC only.
+5.  **Verify:** Confirm `watchtower_lxc` is running and inspect its logs. The schedule is 09:00 daily in the configured `TZ`; notification delivery and an update remain separate live checks.
 
-Watchtower will now start and, based on its schedule, begin monitoring your other running containers for updates.
+For the VM stacks, use the existing Watchtower service in each VM's Compose file. Set `WT_NOTIF_URL` and `TZ` in that VM's private stack environment; do not deploy the Control LXC Compose file into a VM.

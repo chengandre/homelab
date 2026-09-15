@@ -345,7 +345,7 @@ Open WebUI provides a user-friendly, ChatGPT-style web interface for interacting
 
 ### 5.6 Watchtower
 
-Watchtower uses `WT_NOTIF_URL` for its Shoutrrr notification URL and `TZ` for the shared timezone. Obtain the URL using the [common Watchtower notification procedure](../control_lxc/watchtower/watchtower.md), using `WT_NOTIF_URL` in this stack. The configured schedule is 09:00 daily in that timezone; verify successful notifications and updates separately.
+Watchtower runs as part of this VM stack and monitors containers on `cf_vm` through its Docker socket. Set `WT_NOTIF_URL` to the private Shoutrrr Discord value from the [common Watchtower notification procedure](../control_lxc/watchtower/watchtower.md), and set `TZ` to the desired IANA timezone. Its schedule is 09:00 daily in that timezone; verify notification delivery and updates separately.
 
 ## 6. Post-Deployment Steps
 
