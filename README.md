@@ -67,27 +67,27 @@ This LXC container is responsible for overall management, monitoring, and secure
 Services hosted on this VM are intended for public access via Cloudflare Tunnel:
 
 *   **Glances:** System monitoring dashboard providing a quick overview of resource usage on the VM.
-*   **SearXNG:** A privacy-respecting metasearch engine.
-*   **Nextcloud:** Personal cloud storage, file sharing, and collaboration platform.
-*   **Paperless-ngx:** Document management and searchable document archive.
-*   **Open WebUI:** A user-friendly web interface for interacting with local Large Language Models (LLMs).
-*   **Gluetun:** Containerized VPN client routing outbound traffic for other VM services (e.g. SearXNG).
+*   [**SearXNG:**](./cf_vm/README.md#54-searxng) A privacy-respecting metasearch engine.
+*   [**Nextcloud:**](./cf_vm/README.md#51-nextcloud) Personal cloud storage, file sharing, and collaboration platform.
+*   [**Paperless-ngx:**](./cf_vm/README.md#52-paperless-ngx) Document management and searchable document archive.
+*   [**Open WebUI:**](./cf_vm/README.md#55-open-webui) A user-friendly web interface for interacting with local Large Language Models (LLMs).
+*   [**Gluetun:**](./cf_vm/README.md#53-gluetun-vpn-client) Containerized VPN client routing outbound traffic for other VM services (e.g. SearXNG).
 *   **Stirling-PDF:** PDF manipulation and document utility service.
-*   **Portainer Agent:** Allows the main Portainer CE instance on the Control LXC to manage this VM.
+*   [**Portainer Agent:**](./cf_vm/README.md#32-deploy-portainer-agent) Allows the main Portainer CE instance on the Control LXC to manage this VM.
 *   **Tailscale:** Provides private network access to the VM.
-*   **Watchtower:** Automatically updates the stack's containers according to its configuration.
+*   [**Watchtower:**](./cf_vm/README.md#56-watchtower) Automatically updates the stack's containers according to its configuration.
 
 #### `ts_vm` (Tailscale-Accessible VM)
 
 Services on this VM are for private use and accessed securely via Tailscale:
 
 *   **Glances:** System monitoring dashboard providing a quick overview of the VM's resource usage.
-*   **Immich:** Self-hosted photo and video backup solution.
-*   **Vaultwarden:** Self-hosted Bitwarden-compatible password manager.
-*   **Syncthing:** File synchronization used by the documented Pixel 1 photo pipeline.
+*   [**Immich:**](./ts_vm/README.md#51-immich) Self-hosted photo and video backup solution.
+*   [**Vaultwarden:**](./ts_vm/README.md#52-vaultwarden) Self-hosted Bitwarden-compatible password manager.
+*   [**Syncthing:**](./ts_vm/README.md#54-syncthing-and-google-pixel-1-photo-backup) File synchronization used by the documented Pixel 1 photo pipeline.
 *   **Nginx Proxy Manager (NPM):** Reverse proxy for the VM's private services.
-*   **Portainer Agent:** Allows the main Portainer CE instance on the Control LXC to manage this VM.
-*   **Watchtower:** Automatically updates the stack's containers according to its configuration.
+*   [**Portainer Agent:**](./ts_vm/README.md#3-docker-and-portainer-agent-installation) Allows the main Portainer CE instance on the Control LXC to manage this VM.
+*   [**Watchtower:**](./ts_vm/README.md#53-watchtower) Automatically updates the stack's containers according to its configuration.
 
 ## Future Plans
 
