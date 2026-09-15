@@ -239,28 +239,36 @@ To make the TrueNAS datasets available to Docker, mount them within the Debian V
 
 Before deploying Nextcloud and Paperless, complete the [MariaDB dataset and application setup on TrueNAS](../truenas/README.md#311-mariadb-dataset-and-deployment).
 
-1. **Prepare Private Values:** On your workstation, save a copy of the [environment template](./.env.example) as `.env` and replace every `<...>` placeholder using [Section 5](#5-service-specific-configurations). Keep this file private.
-2. **Prepare Local Directories:** In the **CF VM terminal**, set the same absolute `VM_CONFIG_ROOT` used in your private environment file, for example `/home/alex` if your Debian username is `alex`. Replace `alex` with your username in the command below and use the same path in the environment file. Create the directories:
+1. **Prepare Private Values:** On your workstation, save a copy of the [environment template](./.env.example) as `.env` and replace every `<...>` placeholder using [Section 5](#5-service-specific-configurations).
+2. **Choose and prepare host paths:** In the **CF VM terminal**, use the home directory of the Debian account that owns the local configuration, export and consume data. Replace `<USERNAME>` in the commands below and in the Compose file with that account’s username:
 
    ```bash
-   VM_CONFIG_ROOT=/home/alex
-   sudo mkdir -p "$VM_CONFIG_ROOT/paperless/export" "$VM_CONFIG_ROOT/paperless/consume"
-   sudo mkdir -p "$VM_CONFIG_ROOT/searxng" "$VM_CONFIG_ROOT/gluetun"
+   sudo mkdir -p "/home/<USERNAME>/paperless/export" "/home/<USERNAME>/paperless/consume"
+   sudo mkdir -p "/home/<USERNAME>/searxng" "/home/<USERNAME>/gluetun"
    ```
 
-   These are local VM paths. Paperless `data` and `media` instead use `/mnt/truenas/paperless`; Nextcloud uses `/mnt/truenas/nextcloud`. Check each directory's ownership and configure access for its container user before deployment. For Paperless export and consume directories, use the storage account's separate numeric UID and GID:
+   These are local VM paths. Paperless `data` and `media` instead use `/mnt/truenas/paperless`; Nextcloud uses `/mnt/truenas/nextcloud`. Replace `<PAPERLESS_UID>:<PAPERLESS_GID>` with the separate numeric IDs from [Paperless configuration](#52-paperless-ngx). Set `OPENWEBUI_UID` and `OPENWEBUI_GID` to the intended numeric IDs from the CF VM, and set the database, service-port, hostname, VPN, timezone and notification values required by [Section 5](#5-service-specific-configurations). Do not use the Paperless storage IDs for Open Web UI unless that is the identity you intentionally selected. Check each directory's ownership and configure access for its container user before deployment. For Paperless export and consume directories, use the storage account's separate numeric UID and GID:
 
    ```bash
-   sudo chown <PAPERLESS_UID>:<PAPERLESS_GID> "$VM_CONFIG_ROOT/paperless/export" "$VM_CONFIG_ROOT/paperless/consume"
+   sudo chown <PAPERLESS_UID>:<PAPERLESS_GID> "/home/<USERNAME>/paperless/export" "/home/<USERNAME>/paperless/consume"
    ```
 
-   Substitute the IDs obtained in [Paperless configuration](#52-paperless-ngx). Do not recursively change existing application data as part of this directory preparation.
+   Do not recursively change existing application data as part of this directory preparation.
 3. **Create the Stack:** In the **central Portainer UI**, select the `cf_vm` environment, open **Stacks → Add stack**, enter your desired stack name, and choose **Web editor**. Paste the [Compose file](./docker-compose.yml).
-4. **Load Variables:** Under **Environment variables**, choose **Load variables from .env file** and upload your private file, or enter the same names and values individually. Check that every placeholder has been replaced. Portainer substitutes `${VARIABLE}` entries in Compose; explicit service `environment` entries then pass the selected values into containers. This CF stack does not use `env_file: stack.env`. See [Portainer stack creation](https://docs.portainer.io/2.21/user/docker/stacks/add).
-5. **Review and Deploy:** Check [Section 5](#5-service-specific-configurations), database credentials, mounted storage, local directories and distinct available host ports. Click **Deploy the stack**.
-6. **Check Startup:** Open the stack's containers in Portainer and inspect status and logs. Expect services to remain running, without missing-variable, database-connection or storage-permission errors. Confirm each web interface responds at `http://<CF_VM_IP>:<PUBLISHED_PORT>` from an allowed client, then configure the proxy and domains in [Section 6](#6-post-deployment-steps). Initial accounts and service-specific setup are separate from container startup.
+4. **Load Variables:** Under **Environment variables**, choose **Load variables from .env file** and upload the private file from your workstation, or enter the same names and values individually. Check that no `<...>` placeholder remains. Portainer substitutes `${VARIABLE}` entries in the Compose file; explicit service `environment` entries then pass the selected values into containers. This CF stack does not use `env_file: stack.env`. See the [Portainer stack creation guidance](https://docs.portainer.io/user/docker/stacks/add).
+5. **Pre-deployment check:** In the **CF VM terminal**, verify that the host paths are mounted and available before deploying:
 
-Open Web UI, Paperless Redis, and SearXNG Valkey use Docker named volumes on the VM. Include those volumes and the local `VM_CONFIG_ROOT` directories in the backup plan alongside TrueNAS data and external databases. Preserve the private environment values securely for recovery.
+   ```bash
+   findmnt -T /mnt/truenas/nextcloud
+   findmnt -T /mnt/truenas/paperless
+   test -d "/home/<USERNAME>/paperless/export" && test -d "/home/<USERNAME>/paperless/consume"
+   ```
+
+   The first two commands should show `nfs` or `nfs4`; the local-directory check should succeed. Do not deploy against unmounted NFS paths.
+6. **Review and Deploy:** Check [Section 5](#5-service-specific-configurations), database credentials, mounted storage, local directories and distinct available host ports. Click **Deploy the stack**.
+7. **Check Startup:** Open the stack's containers in Portainer and inspect status and logs. Expect services to remain running, without missing-variable, database-connection or storage-permission errors. Confirm each web interface responds at `http://<CF_VM_IP>:<PUBLISHED_PORT>` from an allowed client, then configure the proxy and domains in [Section 6](#6-post-deployment-steps). Initial accounts and service-specific setup are separate from container startup.
+
+Open Web UI, Paperless Redis, and SearXNG Valkey use Docker named volumes on the VM. Include those volumes and the local `/home/<USERNAME>` directories in the backup plan alongside TrueNAS data and external databases. Preserve the private environment values securely for recovery.
 
 ---
 
@@ -343,7 +351,7 @@ Watchtower uses `WT_NOTIF_URL` for its Shoutrrr notification URL and `TZ` for th
 
 With the services running, the final stage is to configure the network path to make them securely accessible from the internet. The flow of traffic will be:
 
-**Internet → Cloudflare Tunnel → Nginx Proxy Manager → Service Container**
+**Internet → Cloudflare Tunnel → Control LXC Tailscale address → Control LXC NPM → `cf_vm` service container**
 
 ### 6.1. Firewall Configuration
 
@@ -373,7 +381,7 @@ Repeat these steps for every service (Nextcloud, Paperless, etc.):
 3.  **Details Tab:**
     *   **Domain Names:** Enter the full public domain for the service (e.g., `nextcloud.<YOUR_DOMAIN>`).
     *   **Scheme:** Leave this as `http`.
-    *   **Forward Hostname / IP:** Enter the IP address of your **new Debian VM** (e.g., `<CF_VM_IP>`).
+    *   **Forward Hostname / IP:** Enter the LAN IP address of `cf_vm` (e.g., `<CF_VM_IP>`).
     *   **Forward Port:** Enter the matching stack host port: `NEXTCLOUD_PORT`, `PAPERLESS_PORT`, `GLUETUN_PORT` for SearXNG, or `OPENWEBUI_PORT`.
     *   Enable **Block Common Exploits** and **Websockets Support**.
 4.  **SSL Tab:**
@@ -396,7 +404,7 @@ First, you need to tell the tunnel which subdomains to listen for and where to s
     *   **Subdomain:** `nextcloud`
     *   **Domain:** Select `<YOUR_DOMAIN>`.
     *   **Service Type:** `HTTPS`
-    *   **URL:** `https://<CONTROL_LXC_IP>:443`. This must point to your NPM instance, as it is the entry point for all tunnel traffic.
+    *   **URL:** `https://<CONTROL_LXC_IP>:443`. This points to NPM on the Control LXC, the entry point for tunnel traffic.
 5.  **Save** the hostname. Repeat this process for `paperless`, `searxng`, and any other services.
 
 #### 6.3.2. Add Hostnames to Your Access Application

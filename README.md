@@ -74,7 +74,6 @@ Services hosted on this VM are intended for public access via Cloudflare Tunnel:
 *   [**Gluetun:**](./cf_vm/README.md#53-gluetun-vpn-client) Containerized VPN client routing outbound traffic for other VM services (e.g. SearXNG).
 *   **Stirling-PDF:** PDF manipulation and document utility service.
 *   [**Portainer Agent:**](./cf_vm/README.md#32-deploy-portainer-agent) Allows the main Portainer CE instance on the Control LXC to manage this VM.
-*   **Tailscale:** Provides private network access to the VM.
 *   [**Watchtower:**](./cf_vm/README.md#56-watchtower) Automatically updates the stack's containers according to its configuration.
 
 #### `ts_vm` (Tailscale-Accessible VM)

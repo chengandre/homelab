@@ -58,8 +58,8 @@ services:
     volumes:
       - /mnt/truenas/paperless/data:/usr/src/paperless/data
       - /mnt/truenas/paperless/media:/usr/src/paperless/media
-      - ${VM_CONFIG_ROOT}/paperless/export:/usr/src/paperless/export
-      - ${VM_CONFIG_ROOT}/paperless/consume:/usr/src/paperless/consume
+      - /home/<USERNAME>/paperless/export:/usr/src/paperless/export
+      - /home/<USERNAME>/paperless/consume:/usr/src/paperless/consume
     environment:
       PAPERLESS_URL: ${PAPERLESS_URL}
       PAPERLESS_REDIS: redis://broker:6379
@@ -117,7 +117,7 @@ services:
     network_mode: "service:gluetun"
     restart: unless-stopped
     volumes:
-      - ${VM_CONFIG_ROOT}/searxng:/etc/searxng:rw
+      - /home/<USERNAME>/searxng:/etc/searxng:rw
     environment:
       - SEARXNG_BASE_URL=https://${SEARXNG_HOSTNAME:-localhost}/
       - UWSGI_WORKERS=${SEARXNG_UWSGI_WORKERS:-4}
@@ -139,7 +139,7 @@ services:
     cap_add:
       - NET_ADMIN
     volumes:
-      - ${VM_CONFIG_ROOT}/gluetun:/gluetun
+      - /home/<USERNAME>/gluetun:/gluetun
     devices:
       - /dev/net/tun:/dev/net/tun
     ports:
