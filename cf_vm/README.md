@@ -87,9 +87,43 @@ Once the VM is created, start it and access its console via the Proxmox UI to pr
         sudo apt install -y sudo nano curl unattended-upgrades ufw openssh-server nfs-common
         ```
 
-3.  **Security Hardening (SSH & Firewall):**
-    *   For enhanced security, it is highly recommended to configure key-based SSH authentication and set up the UFW firewall.
-    *   You can follow the detailed steps outlined in the [LXC Configuration Guide](../control_lxc/README.md#2-initial-lxc-configuration) for this process.
+3.  **Configure SSH Key Access:** From your **local machine**, copy your public key to the Debian user created during installation:
+    ```bash
+    ssh-copy-id -i path/to/your/public_key.pub <username>@<CF_VM_IP>
+    ```
+    Replace the key path, username, and `<CF_VM_IP>`. Test key-based access before changing the SSH configuration:
+    ```bash
+    ssh -i path/to/your/private_key <username>@<CF_VM_IP>
+    ```
+    For the equivalent walkthrough and key-generation details, see the [Control LXC SSH configuration steps](../control_lxc/README.md#24-configure-ssh-access).
+
+4.  **Harden SSH:** In the **CF VM terminal**, edit `/etc/ssh/sshd_config`:
+    ```bash
+    sudo nano /etc/ssh/sshd_config
+    ```
+    Set or uncomment these values:
+    ```ini
+    PermitRootLogin no
+    PasswordAuthentication no
+    PubkeyAuthentication yes
+    ```
+    Save the file, restart SSH, and confirm that a new terminal can still connect with your key before closing the current session:
+    ```bash
+    sudo systemctl restart ssh
+    ssh -i path/to/your/private_key <username>@<CF_VM_IP>
+    ```
+    For background on the settings, see the [Control LXC SSH hardening steps](../control_lxc/README.md#25-harden-ssh).
+
+5.  **Configure the VM Firewall:** In the **CF VM terminal**, set the default policies and allow SSH from your LAN:
+    ```bash
+    sudo ufw default deny incoming
+    sudo ufw default allow outgoing
+    sudo ufw allow from <LAN_SUBNET> to any port 22 proto tcp comment 'Allow SSH from LAN'
+    sudo ufw enable
+    sudo ufw status verbose
+    ```
+    Replace `<LAN_SUBNET>` with your LAN range, such as `192.168.1.0/24`. Confirm that UFW is active and SSH is allowed before disconnecting. The service-specific firewall rules are added later in [Section 6.1](#61-firewall-configuration).
+    For the general UFW procedure, see the [Control LXC firewall steps](../control_lxc/README.md#26-configure-firewall).
 
 ---
 

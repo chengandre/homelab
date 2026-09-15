@@ -2,7 +2,7 @@
 
 This Debian 12 VM runs Docker directly and is managed by the Control LXC's Portainer CE instance through the Portainer Agent. Tailscale is installed locally on `ts_vm`. Optional DNS-only CNAME records in Cloudflare give the services convenient domain names pointing to this VM's Tailscale hostname. Clients connect over Tailscale to a separate Nginx Proxy Manager (NPM) instance on this VM, which forwards requests to the hosted services.
 
-For VM creation, Debian configuration, Docker installation, Portainer Agent setup, and the general NFS mounting workflow, follow the [CF VM guide](../cf_vm/README.md#1-proxmox-vm-creation). Use TS VM-specific names, shares, and ports. For TS service domains, use this VM's Tailscale IP and its own NPM instance rather than the CF VM route through NPM on `control_lxc`.
+For the shared VM procedures, follow the [CF VM creation steps](../cf_vm/README.md#1-proxmox-vm-creation), [Debian configuration steps](../cf_vm/README.md#2-initial-debian-vm-configuration), [Docker and Portainer Agent steps](../cf_vm/README.md#3-docker-and-portainer-agent-installation), and [NFS mounting steps](../cf_vm/README.md#42-mounting-nfs-shares-in-the-debian-vm). Use TS VM-specific names, shares, paths, and ports described below. For TS service domains, use this VM's Tailscale IP and its own NPM instance rather than the CF VM route through NPM on `control_lxc`.
 
 **Table of Contents:**
 
@@ -191,7 +191,7 @@ NPM runs as part of this TS VM Compose stack. It publishes HTTP, HTTPS, and its 
 
    Set `NPM_DATA_LOCATION` and `NPM_LETSENCRYPT_LOCATION` in the private stack environment to those same paths. These directories must persist across container recreation.
 2. **Deploy NPM with the Stack:** In central Portainer, select the `ts_vm` environment, open **Stacks**, edit the TS VM stack, and deploy the updated [Compose file](./docker-compose.yml). Ensure the stack environment includes the two NPM path variables and `TZ`. Confirm that the `npm`, `immich_server`, and `vaultwarden` containers are running and that all three are attached to `proxy-net`.
-3. **Open the NPM Interface:** From the local network, open `http://<TS_VM_IP>:81`. Complete NPM's first-use administrator setup if this is a new instance. The NPM administration interface has no NPM access list configured; access is through the TS VM's port 81. Tailnet-level restrictions remain governed by the [tailnet access policy](../control_lxc/tailscale/tailscale.md#5-tailnet-access-policy).
+3. **Open the NPM Interface:** From the local network, open `http://<TS_VM_IP>:81`. If this is a new instance, enter the administrator email address and a strong administrator password when prompted, save the form, and confirm that the NPM dashboard opens. Keep these credentials private. The NPM administration interface has no NPM access list configured; access is through the TS VM's port 81. Tailnet-level restrictions remain governed by the [tailnet access policy](../control_lxc/tailscale/tailscale.md#5-tailnet-access-policy).
 4. **Create the Immich Proxy Host:** In **Hosts → Proxy Hosts**, click **Add Proxy Host** and enter:
 
    | Field | Value |
@@ -202,7 +202,7 @@ NPM runs as part of this TS VM Compose stack. It publishes HTTP, HTTPS, and its 
    | Forward Port | `2283` |
    | Access List | **Public** |
 
-   Use the same remaining NPM proxy-host options as the existing Control LXC NPM configuration. On the **SSL** tab, select the Let's Encrypt certificate covering this domain and apply the same SSL options used by that configuration. Save the proxy host and confirm its status is **Online**.
+   On the **SSL** tab, select the Let's Encrypt certificate covering this domain. Do not add an access list; the host uses **Public** access. Save the proxy host and confirm its status is **Online**.
 5. **Create the Vaultwarden Proxy Host:** Add another proxy host with:
 
    | Field | Value |
@@ -213,7 +213,7 @@ NPM runs as part of this TS VM Compose stack. It publishes HTTP, HTTPS, and its 
    | Forward Port | `80` |
    | Access List | **Public** |
 
-   Select the Let's Encrypt certificate covering this domain and apply the same SSL options used by the existing Control LXC NPM configuration. Save the proxy host and confirm its status is **Online**.
+   On the **SSL** tab, select the Let's Encrypt certificate covering this domain. Do not add an access list; the host uses **Public** access. Save the proxy host and confirm its status is **Online**.
 6. **Verify the Network Path:** In the TS VM terminal, confirm the stack has created `proxy-net` and that NPM can resolve both upstream container names. From an authorized Tailscale client, the expected path is `photos.<YOUR_DOMAIN>` or `vw.<YOUR_DOMAIN>` → TS VM Tailscale IP → NPM → the corresponding container. The owner confirms this route is working.
 
 ### 6.2 Optional Cloudflare DNS Names

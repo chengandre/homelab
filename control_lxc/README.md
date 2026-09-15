@@ -172,9 +172,9 @@ Set up basic firewall rules using UFW.
         ```
 
 2.  **Allow SSH Access:**
-    Allow SSH connections from your local network (or a specific IP if preferred). Replace `192.168.1.0/24` with your actual local network range:
+    Allow SSH connections from your local network (or a specific IP if preferred). Replace `<LAN_SUBNET>` with your actual local network range:
     ```bash
-    sudo ufw allow from 192.168.1.0/24 to any port 22 proto tcp comment 'Allow SSH from LAN'
+    sudo ufw allow from <LAN_SUBNET> to any port 22 proto tcp comment 'Allow SSH from LAN'
     ```
     *(Additional ports for other services will be opened as those services are installed.)*
 
@@ -247,7 +247,7 @@ docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /va
 *   Complete the initial admin user setup.
 *   Add a UFW rule to allow access:
     ```bash
-    sudo ufw allow from 192.168.1.0/24 to any port 9443 proto tcp comment 'Portainer Web UI'
+    sudo ufw allow from <LAN_SUBNET> to any port 9443 proto tcp comment 'Portainer Web UI'
     ```
 
 All subsequent services in this guide will be deployed as Docker stacks using Portainer.

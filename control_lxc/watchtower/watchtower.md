@@ -40,8 +40,8 @@ If you want Watchtower to send notifications to a Discord channel when it update
 **Steps:**
 
 1.  Create a new stack in Portainer and assign it a name of your choice
-3.  Copy the content from [Watchtower Docker Compose file](./wt-docker-compose.yml) and paste it into Portainer's **Web editor**.
-4.  **For Discord Notifications:** Add the environment variable `WATCHTOWER_NOTIFICATION_URL`. The value should be your full Discord Webhook URL copied formatted as: `discord://<token>@<channel>` (order swapped). You can check out the [Official Documentation](https://containrrr.dev/watchtower/notifications/).
-5.  **Deploy the Stack:**
+2.  Copy the content from [Watchtower Docker Compose file](./wt-docker-compose.yml) and paste it into Portainer's **Web editor**.
+3.  **For Discord Notifications:** Add the environment variable `WATCHTOWER_NOTIFICATION_URL`. Convert the copied Discord Webhook URL to Watchtower's `discord://<token>@<channel>` format, then enter the result. See the [Watchtower notification documentation](https://containrrr.dev/watchtower/notifications/) for the format.
+4.  **Deploy the Stack:**
 
 Watchtower will now start and, based on its schedule, begin monitoring your other running containers for updates.

@@ -24,10 +24,11 @@ NPM acts as a reverse proxy, providing a single entry point for external request
 ### 2. Access & Firewall Rules
 
 *   NPM Admin UI: `http://<LXC_IP>:81`
-*   Complete initial admin setup.
+*   On first login, enter the administrator email address and a strong administrator password when prompted, save the form, and confirm that the NPM dashboard opens. Keep these credentials private.
 *   Add UFW rules:
     ```bash
     sudo ufw allow 80/tcp comment 'NPM HTTP'
     sudo ufw allow 443/tcp comment 'NPM HTTPS'
-    sudo ufw allow from 192.168.1.0/24 to any port 81 proto tcp comment 'NPM Web UI (LAN)'
+    sudo ufw allow from <LAN_SUBNET> to any port 81 proto tcp comment 'NPM Web UI (LAN)'
     ```
+    Replace `<LAN_SUBNET>` with your LAN range, such as `192.168.1.0/24`.
