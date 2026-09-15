@@ -16,6 +16,7 @@ services:
       disable: false
     networks:
       - immich-network
+      - proxy-net
 
   immich-machine-learning:
     container_name: immich_machine_learning
@@ -59,6 +60,8 @@ services:
       PGID: ${VW_GID}
 
       DOMAIN: ${VW_DOMAIN}
+    networks:
+      - proxy-net
 
   syncthing:
     image: lscr.io/linuxserver/syncthing:latest
@@ -96,7 +99,26 @@ services:
       WATCHTOWER_NOTIFICATIONS: shoutrrr
       TZ: ${TZ}
 
+  npm:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: npm
+    restart: unless-stopped
+    ports:
+      # Standard HTTP/S ports for proxying
+      - "80:80"
+      - "443:443"
+      # NPM Admin UI port
+      - "81:81"
+    volumes:
+      - ${NPM_DATA_LOCATION}:/data
+      - ${NPM_LETSENCRYPT_LOCATION}:/etc/letsencrypt
+    environment:
+      TZ: ${TZ}
+    networks:
+      - proxy-net
 
 networks:
   immich-network: # Network for Immich internal components
+    driver: bridge
+  proxy-net:      # Network for services to be proxied by NPM, and for NPM itself
     driver: bridge
