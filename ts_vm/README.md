@@ -9,6 +9,8 @@ For VM creation, Debian configuration, Docker installation, Portainer Agent setu
 1. [Proxmox VM Creation](#1-proxmox-vm-creation)
 2. [Initial Debian VM Configuration](#2-initial-debian-vm-configuration)
 3. [Docker and Portainer Agent Installation](#3-docker-and-portainer-agent-installation)
+   * [Tailscale Installation and Tailnet Setup](#31-tailscale-installation-and-tailnet-setup)
+   * [Tailnet Access Policy](#32-tailnet-access-policy)
 4. [Service Deployment](#4-service-deployment)
    * [TrueNAS Storage](#41-preparing-and-mounting-truenas-storage)
    * [Immich Database Connection](#42-configuring-the-immich-database-connection)
@@ -30,6 +32,27 @@ Follow the [Debian configuration steps](../cf_vm/README.md#2-initial-debian-vm-c
 ## 3. Docker and Portainer Agent Installation
 
 Follow the [Docker and Portainer Agent installation steps](../cf_vm/README.md#3-docker-and-portainer-agent-installation). Register the environment as `ts_vm` and connect the central Portainer instance to `<TS_VM_IP>:9001`.
+
+### 3.1 Tailscale Installation and Tailnet Setup
+
+Tailscale runs directly on the Debian VM. It provides the private network path to the VM's NPM; the Docker stack does not run a Tailscale container.
+
+1. **Install Tailscale:** In the **TS VM terminal**, run the official installation script:
+
+   ```bash
+   curl -fsSL https://tailscale.com/install.sh | sh
+   sudo tailscale up
+   ```
+
+   The `tailscale up` command prints a browser URL. Open it, sign in to the existing tailnet, and approve the new `ts_vm` device. This setup uses interactive browser authentication rather than a reusable auth key. No special routes, exit-node settings, or other `tailscale up` flags are configured. For reference, see the [Tailscale Linux installation](https://tailscale.com/docs/install/linux) page.
+2. **Set the Device Name:** In the Tailscale admin console sidebar, open **Network → Machines**, select the new device, open its device menu, choose the option to edit or rename the machine, enter `ts_vm`, and save. Open the device details again and copy its full DNS name, in the form `<TS_VM_HOSTNAME>.<TAILNET_NAME>.ts.net`, for the later DNS configuration. For background, see [Tailscale MagicDNS](https://tailscale.com/docs/features/magicdns).
+3. **Apply the Server Tag:** In **Network → Machines**, open the `ts_vm` device and select **Edit ACL tags**. Select `tag:server` and save. If `tag:server` is not available, create it first using the [tag creation steps](../control_lxc/tailscale/tailscale.md#5-tailnet-access-policy), then return to **Edit ACL tags**. Tags identify server devices and are targeted by the homelab's [tailnet access policy](#32-tailnet-access-policy). For background, see [Tailscale server setup](https://tailscale.com/docs/how-to/set-up-servers) and [Tailscale tags](https://tailscale.com/docs/features/tags).
+4. **Disable Key Expiry:** In **Network → Machines**, open the `ts_vm` device menu, choose **Disable key expiry**, and confirm the change. Reopen the device menu and check that the action now indicates key expiry is disabled. This is the confirmed setting for this long-running server. For background, see [Tailscale key expiry](https://tailscale.com/docs/features/access-control/key-expiry).
+5. **Enable Tailnet DNS:** In the Tailscale admin console sidebar, open **DNS**, turn on **MagicDNS**, and enable the setting that allows clients to use Tailscale DNS settings. Save the DNS settings. This lets authorized clients resolve the VM's `.ts.net` hostname while connected to the tailnet. Do not add a custom nameserver or split-DNS configuration unless your tailnet requires one. For background, see [Tailscale MagicDNS](https://tailscale.com/docs/features/magicdns).
+
+### 3.2 Tailnet Access Policy
+
+Apply the homelab's redacted tailnet policy from the [Control LXC Tailscale guide](../control_lxc/tailscale/tailscale.md#5-tailnet-access-policy). The `ts_vm` device must have the `tag:server` tag. Under this policy, ordinary tailnet members can reach the server's HTTP, HTTPS, and SMB ports, while SSH, the NPM administration interface, and Portainer remain available only to the administrator's laptop. The policy is enforced by Tailscale; it is separate from the NPM proxy-host configuration.
 
 ## 4. Service Deployment
 
@@ -158,7 +181,7 @@ Cloudflare supplies the DNS record; the client sends service traffic over Tailsc
 
 These records make client URLs easier to remember. Before adding them, join `ts_vm` and the client to your tailnet and configure the TS VM's NPM proxy hosts for Immich and Vaultwarden. Each proxy host must use the same domain you add below and forward to its service's configured port (`IMMICH_PORT` or `VW_PORT`). For HTTPS, NPM needs a certificate covering the chosen service domain; the CNAME does not configure a certificate.
 
-1. **Obtain the Tailscale Hostname:** In the **Tailscale admin console → Machines**, open the entry for `ts_vm` and copy its full DNS name, in the form `<DEVICE_NAME>.<TAILNET_NAME>.ts.net`. Use that name as `<TS_VM_TAILSCALE_HOSTNAME>` below; do not substitute the VM's LAN address or include `https://`, a port, or a path. Enable **MagicDNS** in the tailnet's **DNS** settings and allow the client to use Tailscale DNS settings. See [Tailscale MagicDNS](https://tailscale.com/docs/features/magicdns).
+1. **Obtain the Tailscale Hostname:** Use the full device name recorded in [Tailscale installation and tailnet setup](#31-tailscale-installation-and-tailnet-setup), in the form `<DEVICE_NAME>.<TAILNET_NAME>.ts.net`. Use that name as `<TS_VM_TAILSCALE_HOSTNAME>` below; do not substitute the VM's LAN address or include `https://`, a port, or a path. MagicDNS and client DNS acceptance should already be enabled from the earlier setup.
 2. **Add the Immich Record:** In the **Cloudflare dashboard**, select your domain, open **DNS → Records**, and click **Add record**. Enter:
 
    | Field | Value |

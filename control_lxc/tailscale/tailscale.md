@@ -68,4 +68,139 @@ sudo ufw allow in on tailscale0 to any port 81 proto tcp comment 'NPM Web UI (Ta
 sudo ufw allow in on tailscale0 to any port 22 proto tcp comment 'SSH (Tailscale)'
 ```
 
+### 5. Tailnet Access Policy
+
+Create the tags before assigning them to devices:
+
+1. In the **Tailscale admin console**, open **Access control → Definitions → Tags** in the sidebar.
+2. Click **Create tag**, enter `server`, and save it. Repeat for `cloudgaming` and `external`.
+3. Open **Access control → Policy file**. Replace the existing policy with the redacted policy below, replace `<TAILNET_ADMIN>`, `<ADMIN_LAPTOP_TAILSCALE_IP>`, and `<TAILNET_MEMBER>` with the appropriate tailnet values, then click **Save**. Do not publish personal email addresses or device IP addresses.
+
+If the policy editor reports a syntax or policy error, correct it before saving. The policy must be accepted before device tags can be assigned.
+
+This policy gives ordinary tailnet members access to web services and SMB on tagged servers, gives the administrator's laptop full access to servers and the cloud-gaming device, and limits the external gaming device to the required game-streaming ports. Servers cannot initiate SSH connections to other tailnet devices.
+
+```jsonc
+{
+  "tagOwners": {
+    "tag:server": ["<TAILNET_ADMIN>"],
+    "tag:cloudgaming": ["<TAILNET_ADMIN>"],
+    "tag:external": ["<TAILNET_ADMIN>"]
+  },
+
+  "hosts": {
+    "admin-laptop": "<ADMIN_LAPTOP_TAILSCALE_IP>"
+  },
+
+  "grants": [
+    {
+      "src": ["autogroup:member"],
+      "dst": ["tag:server"],
+      "ip": ["tcp:80", "tcp:443", "tcp:445"]
+    },
+    {
+      "src": ["admin-laptop"],
+      "dst": ["tag:server"],
+      "ip": ["*"]
+    },
+    {
+      "src": ["admin-laptop"],
+      "dst": ["tag:cloudgaming"],
+      "ip": ["*"]
+    },
+    {
+      "src": ["tag:external"],
+      "dst": ["tag:cloudgaming"],
+      "ip": [
+        "tcp:47984-47990",
+        "tcp:48010",
+        "udp:47998-48000"
+      ]
+    }
+  ],
+
+  "tests": [
+    {
+      "src": "admin-laptop",
+      "proto": "tcp",
+      "accept": [
+        "tag:server:22",
+        "tag:server:80",
+        "tag:server:81",
+        "tag:server:443",
+        "tag:server:445",
+        "tag:server:9443"
+      ]
+    },
+    {
+      "src": "admin-laptop",
+      "proto": "tcp",
+      "accept": [
+        "tag:cloudgaming:22",
+        "tag:cloudgaming:47990"
+      ]
+    },
+    {
+      "src": "<TAILNET_MEMBER>",
+      "proto": "tcp",
+      "accept": [
+        "tag:server:80",
+        "tag:server:443",
+        "tag:server:445"
+      ],
+      "deny": [
+        "tag:server:22",
+        "tag:server:81",
+        "tag:server:9443"
+      ]
+    },
+    {
+      "src": "<TAILNET_MEMBER>",
+      "proto": "tcp",
+      "deny": [
+        "tag:cloudgaming:22",
+        "tag:cloudgaming:47990"
+      ]
+    },
+    {
+      "src": "tag:external",
+      "proto": "tcp",
+      "accept": [
+        "tag:cloudgaming:47984",
+        "tag:cloudgaming:47989",
+        "tag:cloudgaming:47990",
+        "tag:cloudgaming:48010"
+      ],
+      "deny": [
+        "tag:cloudgaming:22",
+        "tag:cloudgaming:445",
+        "tag:server:22",
+        "tag:server:443"
+      ]
+    },
+    {
+      "src": "tag:external",
+      "proto": "udp",
+      "accept": [
+        "tag:cloudgaming:47998",
+        "tag:cloudgaming:47999",
+        "tag:cloudgaming:48000"
+      ]
+    },
+    {
+      "src": "tag:server",
+      "proto": "tcp",
+      "deny": [
+        "admin-laptop:22",
+        "<TAILNET_MEMBER>:22",
+        "tag:server:22",
+        "tag:cloudgaming:22"
+      ]
+    }
+  ]
+}
+```
+
+After saving the policy, assign `tag:server` to `ts_vm` from **Network → Machines**. Open the device, select **Edit ACL tags**, select `tag:server`, and save. This gives ordinary tailnet members access to the server's HTTP/HTTPS services, including NPM-proxied applications, while administration ports such as SSH, the NPM web UI, and Portainer remain restricted to the administrator's laptop.
+
 ---
