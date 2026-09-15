@@ -49,7 +49,7 @@ An authentication key allows the Tailscale service within your LXC to join your 
 
 1.  Create a new stack in Portainer and give it a name of your choice.
 2.  In the Web editor, copy and paste the content from the [Tailscale Docker Compose file](./ts-docker-compose.yml).
-3.  Add the env variables as in the [env file](./.env), choose your desired path, and input your generated auth key.
+3.  Copy [`.env.example`](./.env.example) to `.env`, set `TS_PATH` to the persistent state directory, and enter the generated `TS_KEY`. Keep the private `.env` file out of publication.
 4.  **Deploy the stack.**
 
 Once deployed, the Tailscale container should start and appear in your Tailscale Admin Console under "Machines".

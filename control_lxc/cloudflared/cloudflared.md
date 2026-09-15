@@ -54,7 +54,7 @@ Cloudflared creates a secure tunnel from Cloudflare's edge to services running i
 2.  **Deploy Cloudflared Stack in Portainer:**
     *   Create a new stack (e.g., `cloudflared`).
     *   Copy content from [Cloudflared Docker Compose file](./cf-docker-compose.yml) into the web editor.
-    *   Load environment variables from [env](./.env), ensuring you input the `TUNNEL_TOKEN` obtained above.
+    *   Copy [`.env.example`](./.env.example) to `.env` on the host, set `TOKEN` to the tunnel token obtained above, and load that environment file when deploying the stack. Keep `.env` private.
     *   Deploy the stack.
 
 3.  **Configure Public Hostname in Cloudflare Tunnel:**

@@ -17,7 +17,7 @@ NPM acts as a reverse proxy, providing a single entry point for external request
 1.  Navigate to **Stacks** in Portainer and click **"+ Add stack"**.
 2.  **Name:** `npm` (or anything you want).
 3.  **Web editor:** Copy the content from the [NPM Docker Compose file](./npm-docker-compose.yml).
-4.  **Environment Variables:** Upload the [env file](./.env) and add in your paths.
+4.  **Environment Variables:** Copy [`.env.example`](./.env.example) to `.env`, set the host paths for `DATA_PATH` and `LETSENCRYPT_PATH`, and load the private `.env` file when deploying the stack.
 5.  **Deploy the stack.**
     *Note: The provided NPM `docker-compose.yml` should define a Docker network (e.g., `proxy_network`) for inter-container communication.*
 
