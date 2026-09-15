@@ -1,10 +1,10 @@
-# Service Deployment Guide: Cloud-Exposed VM
+# Service Deployment Guide: Cloudflare-Exposed VM
 
 This guide provides a comprehensive walkthrough for setting up a Debian 12 Virtual Machine (VM) in Proxmox. It covers the initial VM creation, system configuration, and the deployment of various services using Docker.
 
 The architecture assumes that a central Portainer instance is running elsewhere (e.g., in a control LXC) to manage this VM's Docker environment via the Portainer Agent. Nextcloud and Paperless use TrueNAS NFS storage, with external databases configured separately. Docker named volumes and local configuration directories remain on `cf_vm`.
 
-While the services are listed in a suggested order, you can choose to install any component independently.
+The services are presented in deployment order because storage and database preparation are shared prerequisites. Follow the relevant sections for the services you intend to deploy.
 
 **Table of Contents:**
 
@@ -20,7 +20,7 @@ While the services are listed in a suggested order, you can choose to install an
     *   [Paperless-ngx](#52-paperless-ngx)
     *   [Gluetun (VPN Client)](#53-gluetun-vpn-client)
     *   [SearXNG](#54-searxng)
-    *   [OpenWebUI](#55-openwebui)
+    *   [Open WebUI](#55-open-webui)
     *   [Watchtower](#56-watchtower)
 6.  [Post-Deployment Steps](#6-post-deployment-steps)
     *   [Firewall Configuration](#61-firewall-configuration)
@@ -226,7 +226,7 @@ Before deploying Nextcloud and Paperless, complete the [MariaDB dataset and appl
 5. **Review and Deploy:** Check [Section 5](#5-service-specific-configurations), database credentials, mounted storage, local directories and distinct available host ports. Click **Deploy the stack**.
 6. **Check Startup:** Open the stack's containers in Portainer and inspect status and logs. Expect services to remain running, without missing-variable, database-connection or storage-permission errors. Confirm each web interface responds at `http://<CF_VM_IP>:<PUBLISHED_PORT>` from an allowed client, then configure the proxy and domains in [Section 6](#6-post-deployment-steps). Initial accounts and service-specific setup are separate from container startup.
 
-OpenWebUI, Paperless Redis and SearXNG Valkey use Docker named volumes on the VM. Include those volumes and the local `VM_CONFIG_ROOT` directories in the backup plan alongside TrueNAS data and external databases. Preserve the private environment values securely for recovery.
+Open Web UI, Paperless Redis, and SearXNG Valkey use Docker named volumes on the VM. Include those volumes and the local `VM_CONFIG_ROOT` directories in the backup plan alongside TrueNAS data and external databases. Preserve the private environment values securely for recovery.
 
 ---
 
@@ -293,9 +293,9 @@ SearXNG is a metasearch engine that aggregates results from other search service
 *   **Public URL:** Set `SEARXNG_HOSTNAME` to `searxng.<YOUR_DOMAIN>`, without `https://` or a trailing slash. Compose constructs `SEARXNG_BASE_URL`. Worker and thread example values are `4`, matching the Compose defaults.
 *   **Storage:** Verify the volume path for its data is correct.
 
-### 5.5 OpenWebUI
+### 5.5 Open WebUI
 
-OpenWebUI provides a user-friendly, ChatGPT-style web interface for interacting with various local and cloud-based Large Language Models (LLMs).
+Open WebUI provides a user-friendly, ChatGPT-style web interface for interacting with various local and cloud-based Large Language Models (LLMs).
 
 *   **Port:** Set `OPENWEBUI_PORT` to its published CF VM port, mapped to container port `8080`.
 *   **IDs:** Set `OPENWEBUI_UID` and `OPENWEBUI_GID` to the intended numeric account IDs. In the **CF VM terminal**, use `id <VM_USER>` to obtain separate values for a selected Debian account. Compose passes these as `PUID` and `PGID`; verify the effective container user before changing existing volume ownership.
@@ -322,7 +322,7 @@ On the **Debian VM where your services are running**, execute the following comm
 sudo ufw allow from <CONTROL_LXC_IP> to any port <NEXTCLOUD_PORT> proto tcp comment 'Allow NPM to Nextcloud'
 sudo ufw allow from <CONTROL_LXC_IP> to any port <PAPERLESS_PORT> proto tcp comment 'Allow NPM to Paperless'
 sudo ufw allow from <CONTROL_LXC_IP> to any port <GLUETUN_PORT> proto tcp comment 'Allow NPM to SearXNG'
-sudo ufw allow from <CONTROL_LXC_IP> to any port <OPENWEBUI_PORT> proto tcp comment 'Allow NPM to OpenWebUI'
+sudo ufw allow from <CONTROL_LXC_IP> to any port <OPENWEBUI_PORT> proto tcp comment 'Allow NPM to Open Web UI'
 
 # Reload the firewall to apply the new rules
 sudo ufw reload
@@ -349,7 +349,7 @@ Repeat these steps for every service (Nextcloud, Paperless, etc.):
 
 ### 6.3. Cloudflare Configuration
 
-Finally, configure your Cloudflare Zero Trust dashboard to route traffic for your new services through the tunnel and protect them with an access policy. Ensure that you have setup Cloudflared and established the Tunnels in [this guide](../control_lxc/cloudflared/cloudflared.md).
+Finally, configure your Cloudflare Zero Trust dashboard to route traffic for your new services through the tunnel and protect them with an access policy. Ensure that you have set up Cloudflared and established the tunnel by following [the Cloudflared guide](../control_lxc/cloudflared/cloudflared.md).
 
 #### 6.3.1. Add Public Hostnames to the Tunnel
 
@@ -376,5 +376,3 @@ Defining the hostname makes it routable, but adding it to an "Application" is wh
 5.  **Save** the application.
 
 Now, when you try to access `https://nextcloud.<YOUR_DOMAIN>`, you will be prompted with the Cloudflare Access login screen before your request is passed to NPM and then to your service. The corresponding DNS records will be created automatically in your main Cloudflare dashboard.
-
-

@@ -11,7 +11,7 @@ TrueNAS provides persistent storage and hosts database applications for services
      * [NFS Share](#212-nfs-share)
      * [PostgreSQL Dataset and Deployment](#213-postgresql-dataset-and-deployment)
    * [Vaultwarden](#22-vaultwarden)
-     * [Persistent Dataset](#221-persistent-dataset)
+     * [Mass-Storage Dataset](#221-mass-storage-dataset)
      * [NFS Share](#222-nfs-share)
 3. [CF VM](#3-cf-vm)
    * [Nextcloud](#31-nextcloud)
@@ -62,8 +62,8 @@ Immich's library and machine-learning cache share one mass-storage dataset and N
 #### 2.1.2 NFS Share
 
 1. **Add the Share:** In the **TrueNAS web interface → Shares → NFS**, click **Add** and select the dataset you created as **Path**, for example `/mnt/<MASS_STORAGE_POOL>/ts_vm/Immich`.
-2. **Set Access Options:** Leave **Description** empty, check **Enabled**, and leave **Read Only** unchecked. Set **Maproot User** and **Maproot Group** to your storage account and group (`immich` in these examples). Leave **Mapall User** and **Mapall Group** unset. The deployed share has no explicit selection shown in **Security**.
-3. **Restrict the Client:** In **Networks**, add `<TS_VM_IP>` with prefix length **32**. Use the TS VM's LAN address; the `/32` entry selects that single IPv4 address. The deployed share uses Maproot, rather than Mapall.
+2. **Set Access Options:** Leave **Description** empty, check **Enabled**, and leave **Read Only** unchecked. Set **Maproot User** and **Maproot Group** to your storage account and group (`immich` in these examples). Leave **Mapall User** and **Mapall Group** unset, and leave **Security** without an explicit selection.
+3. **Restrict the Client:** In **Networks**, add `<TS_VM_IP>` with prefix length **32**. Use the TS VM's LAN address; the `/32` entry selects that single IPv4 address. Use Maproot rather than Mapall for this share.
 4. **Verify the Share:** Save, reopen the share, and confirm the export path, enabled state, writable setting, client entry, and user/group mappings.
 
 Continue with [TS VM storage mounting](../ts_vm/README.md#41-preparing-and-mounting-truenas-storage), using this export path. TrueNAS paths, VM mount points, and container paths are distinct.
@@ -149,7 +149,7 @@ After the database is ready, return to [TS VM database connection settings](../t
 
 Vaultwarden's persistent data lives in its own mass-storage dataset and writable NFS export.
 
-#### 2.2.1 Persistent Dataset
+#### 2.2.1 Mass-Storage Dataset
 
 1. **Create the Storage User:** In the **TrueNAS web interface → Credentials → Users → Add**, enter your desired **Full Name**, for example `Vaultwarden`, and **Username**, for example `vaultwar`. Select **Create New Primary Group** to create a group matching your chosen username, choose an available UID, then save the account. This account supplies filesystem ownership and numeric IDs for application access.
 2. **Record the IDs:** In the **TrueNAS shell**, run:
@@ -171,8 +171,8 @@ Vaultwarden's persistent data lives in its own mass-storage dataset and writable
 #### 2.2.2 NFS Share
 
 1. **Add the Share:** In the **TrueNAS web interface → Shares → NFS**, click **Add** and select the dataset you created as **Path**, for example `/mnt/<MASS_STORAGE_POOL>/ts_vm/Vaultwarden`.
-2. **Set Access Options:** Leave **Description** empty, check **Enabled**, and leave **Read Only** unchecked. Set **Maproot User** and **Maproot Group** to your storage account and group (`vaultwar` in these examples). Leave **Mapall User** and **Mapall Group** unset. The deployed share has no explicit selection shown in **Security**.
-3. **Restrict the Client:** In **Networks**, add `<TS_VM_IP>` with prefix length **32**. Use the TS VM's LAN address; the `/32` entry selects that single IPv4 address. The deployed share uses Maproot, rather than Mapall.
+2. **Set Access Options:** Leave **Description** empty, check **Enabled**, and leave **Read Only** unchecked. Set **Maproot User** and **Maproot Group** to your storage account and group (`vaultwar` in these examples). Leave **Mapall User** and **Mapall Group** unset, and leave **Security** without an explicit selection.
+3. **Restrict the Client:** In **Networks**, add `<TS_VM_IP>` with prefix length **32**. Use the TS VM's LAN address; the `/32` entry selects that single IPv4 address. Use Maproot rather than Mapall for this share.
 4. **Verify the Share:** Save, reopen the share, and confirm the export path, enabled state, writable setting, client entry, and user/group mappings.
 
 Continue with [TS VM storage mounting](../ts_vm/README.md#41-preparing-and-mounting-truenas-storage), using this export path. TrueNAS paths, VM mount points, and container paths are distinct.

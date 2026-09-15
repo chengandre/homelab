@@ -35,7 +35,7 @@ Follow the [Docker and Portainer Agent installation steps](../cf_vm/README.md#3-
 
 ### 4.1 Preparing and Mounting TrueNAS Storage
 
-1. **Prepare Shares:** Complete the TrueNAS [Immich dataset and NFS setup](../truenas/README.md#211-mass-storage-dataset) and [Vaultwarden dataset and NFS setup](../truenas/README.md#221-persistent-dataset). The Immich library and model cache are within one dataset, with the example export path `/mnt/<MASS_STORAGE_POOL>/ts_vm/Immich`. Vaultwarden has a separate example export at `/mnt/<MASS_STORAGE_POOL>/ts_vm/Vaultwarden`. Both exports allow `<TS_VM_IP>/32`, using this VM's LAN address.
+1. **Prepare Shares:** Complete the TrueNAS [Immich dataset and NFS setup](../truenas/README.md#211-mass-storage-dataset) and [Vaultwarden dataset and NFS setup](../truenas/README.md#221-mass-storage-dataset). The Immich library and model cache are within one dataset, with the example export path `/mnt/<MASS_STORAGE_POOL>/ts_vm/Immich`. Vaultwarden has a separate example export at `/mnt/<MASS_STORAGE_POOL>/ts_vm/Vaultwarden`. Both exports allow `<TS_VM_IP>/32`, using this VM's LAN address.
 2. **Create Mount Points:** In the TS VM terminal, create the example mount points used by the template:
 
    ```bash

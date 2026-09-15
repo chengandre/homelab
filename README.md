@@ -1,10 +1,10 @@
 # My Homelab
 
-This repository serves as a comprehensive documentation hub for my personal homelab setup. All configurations and choices are tailored to my specific needs and learning objectives. However, I welcome suggestions for improvements, alternative approaches, or new services that could enhance this environment.
+This repository documents my personal homelab setup. The configurations and choices are tailored to my specific needs and learning objectives, and suggestions for improvements, alternative approaches, or new services are welcome.
 
 ## Prerequisites and Guide Order
 
-These walkthroughs assume a Proxmox VE host, a TrueNAS system for persistent storage, and a Cloudflare-managed domain where the relevant guide uses Cloudflare services. Complete the host creation and initial configuration steps before deploying Docker stacks. Create the required TrueNAS datasets, database applications and NFS shares before mounting storage in either VM; the VM guides then cover mounts, Compose configuration and service access.
+These walkthroughs assume a Proxmox VE host, a TrueNAS system for persistent storage, and a Cloudflare-managed domain where the relevant guide uses Cloudflare services. Complete host creation and initial configuration before deploying Docker stacks. Create the required TrueNAS datasets, database applications, and NFS shares before mounting storage in either VM; the VM guides then cover mounts, Compose configuration, and service access.
 
 ## Core Architecture
 
@@ -12,7 +12,7 @@ My homelab is built upon a foundation of **Proxmox VE** for virtualization. Cent
 
 ## Virtualized Environments
 
-The current Proxmox setup includes:
+The documented Proxmox setup includes:
 
 *   [**TrueNAS Storage Server:**](./truenas/README.md)
     *   **Version:** 24.10.2.1
@@ -21,20 +21,20 @@ The current Proxmox setup includes:
     *   **OS:** Debian 11 (Bullseye)
     *   **Role:** This container acts as a central management and routing point. It handles incoming requests, monitors the health of other VMs, and hosts various network-wide utility services.
 *   **Two Virtual Machines (VMs):**
-    *   [**`cf_vm` (Cloudflare Exposed VM):**](./cf_vm/README.md)
+    *   [**`cf_vm` (Cloudflare-Exposed VM):**](./cf_vm/README.md)
         *   **OS:** Debian 12 (Bookworm)
         *   **Role:** Hosts services intended to be accessible from the internet. Access is secured and managed via **Cloudflare Tunnel**.
-    *   [**`ts_vm` (Tailscale Accessible VM):**](./ts_vm/README.md)
+    *   [**`ts_vm` (Tailscale-Accessible VM):**](./ts_vm/README.md)
         *   **OS:** Debian 12 (Bookworm)
         *   **Role:** Hosts private services that are only accessible via my **Tailscale** private network.
 
 ## Hosted Services
 
-The services are all deployed in Docker containers using **Portainer CE** for easier management and orchestration. Below is a breakdown of these services.
+The services documented here run in Docker containers managed through **Portainer CE**. The host-by-host breakdown is below.
 
 ### Common Utility Services
 
-The following utility services are deployed on most, if not all, virtualized environments (LXC and VMs) to ensure consistent operation, monitoring, and maintenance:
+The homelab uses the following common utility services across its LXC and VM environments for operation, monitoring, and maintenance:
 
 *   **Glances:** System monitoring dashboard providing a quick overview of resource usage on each host.
 *   **Portainer Agent:** Allows the central Portainer CE instance (running on the Control LXC) to manage Docker environments on the respective VMs. *(The Control LXC runs the main Portainer CE instance).*
@@ -53,16 +53,16 @@ This LXC container is responsible for overall management, monitoring, and secure
 *   [**Tailscale:**](./control_lxc/tailscale/tailscale.md) Provides secure VPN access to the LXC and potentially acts as a subnet router or exit node for the homelab network.
 *   **Uptime Kuma:** Monitors the availability of all critical services.
 
-#### `cf_vm` (Cloudflare Exposed VM)
+#### `cf_vm` (Cloudflare-Exposed VM)
 
 Services hosted on this VM are intended for public access via Cloudflare Tunnel:
 
 *   **SearXNG:** A privacy-respecting metasearch engine.
 *   **Nextcloud:** Personal cloud storage, file sharing, and collaboration platform.
-*   **OpenWebUI:** A user-friendly web interface for interacting with local Large Language Models (LLMs).
+*   **Open WebUI:** A user-friendly web interface for interacting with local Large Language Models (LLMs).
 *   **Gluetun:** Containerized VPN client routing outbound traffic for other VM services (e.g. SearXNG).
 
-#### `ts_vm` (Tailscale Accessible VM)
+#### `ts_vm` (Tailscale-Accessible VM)
 
 Services on this VM are for private use and accessed securely via Tailscale:
 

@@ -1,6 +1,6 @@
 # LXC Container Deployment Guide
 
-This guide outlines the steps to deploy services within this LXC container. While the services are listed in a suggested order, you can choose to install any component independently.
+This guide outlines the steps to deploy services within this LXC container. The sections follow a suggested order; follow the prerequisites for each service before deploying it.
 
 **Table of Contents:**
 
@@ -259,7 +259,7 @@ All subsequent services in this guide will be deployed as Docker stacks using Po
 
 ## 7. Other Services Installation
 
-At this point, you can choose to setup the other two VMs and deploy those services directly. The rest of this guide will install:
+At this point, you can choose to set up the other two VMs and deploy their services directly. The rest of this guide installs:
 
 1. [Watchtower](./watchtower/watchtower.md): a service that updates all containers
 2. Glances: Hardware monitor
