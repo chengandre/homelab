@@ -6,7 +6,7 @@ Cloudflared creates a secure tunnel from Cloudflare's edge to services running i
 
 1.  [LXC Container Creation in Proxmox](../README.md#1-lxc-container-creation-in-proxmox)
 2.  [Initial LXC configuration](../README.md#2-initial-lxc-configuration)
-3.  [Portainer Installation](../README.md#portainer-installation)
+3.  [Portainer Installation](../README.md#3-portainer-installation)
 4.  [Nginx Proxy Manager Installation](../npm/npm.md)
 5.  [Cloudflared Installation](../cloudflared/cloudflared.md)
 6.  [Tailscale Installation](../tailscale/tailscale.md)
@@ -19,7 +19,7 @@ Cloudflared creates a secure tunnel from Cloudflare's edge to services running i
 ### 2. Cloudflare Dashboard Configuration
 
 1. **Encryption Mode:**
-    *   Cloudflare Dashboard -> Your Domain -> SSL/TLS -> Select the encryption mode that you want. I went with Full.
+    *   Cloudflare Dashboard -> Your Domain -> SSL/TLS -> set the mode to **Full (strict)** when the origin presents a valid trusted certificate. Use the mode that matches your origin certificate and review [Cloudflare's SSL/TLS guidance](https://developers.cloudflare.com/ssl/origin-configuration/ssl-modes/).
 
 2.  **Enable "Always Use HTTPS":**
     *   Cloudflare Dashboard -> Your Domain -> SSL/TLS -> Edge Certificates -> Enable "Always Use HTTPS".
@@ -63,9 +63,8 @@ Cloudflared creates a secure tunnel from Cloudflare's edge to services running i
         *   **Service Type:** `HTTPS`.
         *   **URL:** `npm:443` (assuming your NPM container is named `npm` and is on the same Docker network as Cloudflared).
         *   **Additional application settings -> TLS:**
-            *   Enable **"No TLS Verify"** (NPM will handle SSL termination with a valid certificate).
-            *   **Origin Server Name:** Enter the public hostname you are configuring (e.g., `yourdomain.com`).
-    *   Save the hostname. Repeat for any other services you want to expose directly via the tunnel to NPM in the future/
+            *   Keep **"No TLS Verify"** disabled when NPM presents a valid trusted certificate. Set **Origin Server Name** to the hostname covered by that certificate (for example, `yourdomain.com`). Cloudflared uses this value for certificate validation and SNI; see [origin parameters](https://developers.cloudflare.com/tunnel/advanced/origin-parameters/).
+    *   Save the hostname. Repeat this process for any other services you want to expose through NPM in the future.
     * If you go back to Tunnels, you should see that the one you've just created is healthy.
 
 ### 4. Cloudflare Application (Access Control)

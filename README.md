@@ -2,22 +2,29 @@
 
 This repository serves as a comprehensive documentation hub for my personal homelab setup. All configurations and choices are tailored to my specific needs and learning objectives. However, I welcome suggestions for improvements, alternative approaches, or new services that could enhance this environment.
 
+## Prerequisites and Guide Order
+
+These walkthroughs assume a Proxmox VE host, a TrueNAS system for persistent storage, and a Cloudflare-managed domain where the relevant guide uses Cloudflare services. Complete the host creation and initial configuration steps before deploying Docker stacks. Create the required TrueNAS datasets, database applications and NFS shares before mounting storage in either VM; the VM guides then cover mounts, Compose configuration and service access.
+
 ## Core Architecture
 
 My homelab is built upon a foundation of **Proxmox VE** for virtualization. Centralized storage is managed by **TrueNAS**, utilizing **ZFS** with a **RAID-Z2** configuration for data redundancy and integrity. Large application data is stored on TrueNAS datasets and made available to the virtualized environments via **NFS shares**. Database data uses the separate SSD pool on TrueNAS. Some service configuration, Docker volumes, and Paperless export and consume directories remain local to the VMs.
 
 ## Virtualized Environments
 
-Beyond the TrueNAS instance, the current Proxmox setup includes:
+The current Proxmox setup includes:
 
+*   [**TrueNAS Storage Server:**](./truenas/README.md)
+    *   **Version:** 24.10.2.1
+    *   **Role:** Provides centralized ZFS storage, NFS shares for the VMs, and database applications for services that run on TrueNAS.
 *   [**A Control LXC Container:**](./control_lxc/README.md)
     *   **OS:** Debian 11 (Bullseye)
     *   **Role:** This container acts as a central management and routing point. It handles incoming requests, monitors the health of other VMs, and hosts various network-wide utility services.
 *   **Two Virtual Machines (VMs):**
-    *   **`cf_vm` (Cloudflare Exposed VM):**
+    *   [**`cf_vm` (Cloudflare Exposed VM):**](./cf_vm/README.md)
         *   **OS:** Debian 12 (Bookworm)
         *   **Role:** Hosts services intended to be accessible from the internet. Access is secured and managed via **Cloudflare Tunnel**.
-    *   **`ts_vm` (Tailscale Accessible VM):**
+    *   [**`ts_vm` (Tailscale Accessible VM):**](./ts_vm/README.md)
         *   **OS:** Debian 12 (Bookworm)
         *   **Role:** Hosts private services that are only accessible via my **Tailscale** private network.
 

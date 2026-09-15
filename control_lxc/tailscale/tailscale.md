@@ -6,7 +6,7 @@ Tailscale provides a secure virtual private network (VPN) solution, enabling acc
 
 1.  [LXC Container Creation in Proxmox](../README.md#1-lxc-container-creation-in-proxmox)
 2.  [Initial LXC configuration](../README.md#2-initial-lxc-configuration)
-3.  [Portainer Installation](../README.md#portainer-installation)
+3.  [Portainer Installation](../README.md#3-portainer-installation)
 4.  [Nginx Proxy Manager Installation](../npm/npm.md)
 5.  [Cloudflared Installation](../cloudflared/cloudflared.md)
 6.  [Tailscale Installation](../tailscale/tailscale.md)

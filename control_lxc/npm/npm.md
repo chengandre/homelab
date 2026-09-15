@@ -6,7 +6,7 @@ NPM acts as a reverse proxy, providing a single entry point for external request
 
 1.  [LXC Container Creation in Proxmox](../README.md#1-lxc-container-creation-in-proxmox)
 2.  [Initial LXC configuration](../README.md#2-initial-lxc-configuration)
-3.  [Portainer Installation](../README.md#portainer-installation)
+3.  [Portainer Installation](../README.md#3-portainer-installation)
 4.  [Nginx Proxy Manager Installation](../npm/npm.md)
 5.  [Cloudflared Installation](../cloudflared/cloudflared.md)
 6.  [Tailscale Installation](../tailscale/tailscale.md)
@@ -19,7 +19,7 @@ NPM acts as a reverse proxy, providing a single entry point for external request
 3.  **Web editor:** Copy the content from the [NPM Docker Compose file](./npm-docker-compose.yml).
 4.  **Environment Variables:** Copy [`.env.example`](./.env.example) to `.env`, set the host paths for `DATA_PATH` and `LETSENCRYPT_PATH`, and load the private `.env` file when deploying the stack.
 5.  **Deploy the stack.**
-    *Note: The provided NPM `docker-compose.yml` should define a Docker network (e.g., `proxy_network`) for inter-container communication.*
+    *Note: The provided Compose file defines the shared external Docker network as `proxy_net`; Cloudflared must join that same network to reach NPM by container name.*
 
 ### 2. Access & Firewall Rules
 

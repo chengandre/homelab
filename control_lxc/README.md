@@ -6,7 +6,7 @@ This guide outlines the steps to deploy services within this LXC container. Whil
 
 1.  [LXC Container Creation in Proxmox](#1-lxc-container-creation-in-proxmox)
 2.  [Initial LXC configuration](#2-initial-lxc-configuration)
-3.  [Portainer Installation](#portainer-installation)
+3.  [Portainer Installation](#3-portainer-installation)
 4.  [Nginx Proxy Manager Installation](./npm/npm.md)
 5.  [Cloudflared Installation](./cloudflared/cloudflared.md)
 6.  [Tailscale Installation](./tailscale/tailscale.md)
