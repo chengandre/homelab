@@ -202,7 +202,7 @@ NPM runs as part of this TS VM Compose stack. It publishes HTTP, HTTPS, and its 
    | Forward Port | `2283` |
    | Access List | **Public** |
 
-   On the **SSL** tab, select the Let's Encrypt certificate covering this domain. Do not add an access list; the host uses **Public** access. Save the proxy host and confirm its status is **Online**.
+   On the **SSL** tab, select the Let's Encrypt certificate covering this domain and enable **Force SSL** and **HTTP/2 Support**. Leave the other proxy-host fields unchanged. Do not add an access list; the host uses **Public** access. Save the proxy host and confirm its status is **Online**.
 5. **Create the Vaultwarden Proxy Host:** Add another proxy host with:
 
    | Field | Value |
@@ -213,7 +213,7 @@ NPM runs as part of this TS VM Compose stack. It publishes HTTP, HTTPS, and its 
    | Forward Port | `80` |
    | Access List | **Public** |
 
-   On the **SSL** tab, select the Let's Encrypt certificate covering this domain. Do not add an access list; the host uses **Public** access. Save the proxy host and confirm its status is **Online**.
+   On the **SSL** tab, select the Let's Encrypt certificate covering this domain and enable **Force SSL** and **HTTP/2 Support**. Leave the other proxy-host fields unchanged. Do not add an access list; the host uses **Public** access. Save the proxy host and confirm its status is **Online**.
 6. **Verify the Network Path:** In the TS VM terminal, confirm the stack has created `proxy-net` and that NPM can resolve both upstream container names. From an authorized Tailscale client, the expected path is `photos.<YOUR_DOMAIN>` or `vw.<YOUR_DOMAIN>` → TS VM Tailscale IP → NPM → the corresponding container. The owner confirms this route is working.
 
 ### 6.2 Optional Cloudflare DNS Names

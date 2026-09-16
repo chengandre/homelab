@@ -41,7 +41,7 @@ An authentication key allows the Tailscale service within your LXC to join your 
 1.  Log in to your [Tailscale Admin Console](https://login.tailscale.com/admin/machines).
 2.  Navigate to **Settings**->**Keys** and generate a new authentication key.
 3.  **Configure the key:** You can choose it to be reusable and its expiration period.
-7.  **Copy the generated key** (e.g., `tskey-auth-kEXAMPLE...`).
+4.  **Copy the generated key** (e.g., `tskey-auth-kEXAMPLE...`).
 
 ---
 

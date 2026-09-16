@@ -384,9 +384,11 @@ Repeat these steps for every service (Nextcloud, Paperless, etc.):
     *   **Forward Hostname / IP:** Enter the LAN IP address of `cf_vm` (e.g., `<CF_VM_IP>`).
     *   **Forward Port:** Enter the matching stack host port: `NEXTCLOUD_PORT`, `PAPERLESS_PORT`, `GLUETUN_PORT` for SearXNG, or `OPENWEBUI_PORT`.
     *   Enable **Block Common Exploits** and **Websockets Support**.
+    *   Leave the other Details fields unchanged.
 4.  **SSL Tab:**
     *   **SSL Certificate:** Select your wildcard certificate (e.g., `*.<YOUR_DOMAIN>`).
     *   Enable **Force SSL** and **HTTP/2 Support**.
+    *   Leave the other SSL fields unchanged.
 5.  **Save:** Click **"Save"**.
 
 ### 6.3. Cloudflare Configuration
@@ -404,7 +406,7 @@ First, you need to tell the tunnel which subdomains to listen for and where to s
     *   **Subdomain:** `nextcloud`
     *   **Domain:** Select `<YOUR_DOMAIN>`.
     *   **Service Type:** `HTTPS`
-    *   **URL:** `https://<CONTROL_LXC_IP>:443`. This points to NPM on the Control LXC, the entry point for tunnel traffic.
+    *   **URL:** `https://npm:443`. Cloudflared and NPM share the external `proxy_net` Docker network, so the NPM container name is resolvable from the tunnel container.
 5.  **Save** the hostname. Repeat this process for `paperless`, `searxng`, and any other services.
 
 #### 6.3.2. Add Hostnames to Your Access Application
