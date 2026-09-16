@@ -159,13 +159,99 @@ Syncthing also runs on this VM. Together with a script, it copies photos onto th
 The Compose stack uses the LinuxServer Syncthing image and configures:
 
 * **SYNCTHING_CONFIG_LOCATION:** Persistent VM directory for Syncthing's settings and database, mapped to `/config`.
-* **SYNCTHING_LOCATION:** Library path on this VM, mapped to `/data/immich`. Point this at the intended mounted TrueNAS photo folder.
+* **SYNCTHING_LOCATION:** Pipeline staging path on this VM, mapped to `/data/immich`. Set this to `/mnt/truenas/immich/pipeline/staging` so Syncthing exposes only MotionPhoto2 output to the Pixel.
 * **PUID / PGID:** Syncthing's user/group IDs; match the actual permissions on both mounted directories.
 * **TZ:** Shared timezone.
 * **SYNCTHING_GUI_PORT:** Published web GUI port, originally `8384`.
 * **SYNCTHING_SYNC_PORT:** Published TCP and UDP synchronization port, originally `22000`.
 
 The library mount intentionally allows both reads and writes. Keep it writable for this workflow.
+
+#### 5.4.1 Install the pipeline dependencies
+
+The pipeline runs on the **TS VM** as the account that owns `/home/<USERNAME>/pipeline`. It uses the [motionphoto-cli](https://github.com/chengandre/motionphoto-cli) command-line project. This version removes the Gooey graphical interface, uses Python's `argparse`, and omits Gooey from `requirements.txt`.
+
+1. **Install ExifTool:** Download `Image-ExifTool-13.59.tar.gz` from the [ExifTool home page](https://exiftool.org/), then run:
+
+   ```bash
+   cd <download-directory>
+   gzip -dc Image-ExifTool-13.59.tar.gz | tar -xf -
+   cd Image-ExifTool-13.59
+   perl Makefile.PL
+   make test
+   sudo make install
+   exiftool -ver
+   ```
+
+   `make test` verifies the installation; the expected version is `13.59`.
+2. **Choose a converter installation:** Use either the Python source workflow or the published Linux binary. Both provide the same command-line operation; choose one for the pipeline.
+
+   **Python virtual environment:** Clone [motionphoto-cli](https://github.com/chengandre/motionphoto-cli) into the path expected by the Python workflow. This destination name preserves the paths used by the pipeline script:
+
+   ```bash
+   cd /home/<USERNAME>/pipeline
+   git clone https://github.com/chengandre/motionphoto-cli.git MotionPhoto2
+   ```
+
+   Debian 12 includes Python 3.11. Install the venv and pip packages, then create and populate the environment used by the script:
+
+   ```bash
+   sudo apt update
+   sudo apt install -y python3-venv python3-pip
+   mkdir -p /home/<USERNAME>/pipeline
+   cd /home/<USERNAME>/pipeline
+   python3 -m venv .venv
+   .venv/bin/python -m pip install --upgrade pip
+   .venv/bin/pip install -r MotionPhoto2/requirements.txt
+   .venv/bin/python MotionPhoto2/motionphoto2.py --help
+   ```
+
+   The final command should display MotionPhoto2's command-line options. The supplied [pipeline script](./pipeline/run_pipeline.sh) uses this Python installation by default.
+
+   **Linux release binary:** Download the Linux archive from the [motionphoto-cli releases](https://github.com/chengandre/motionphoto-cli/releases), extract it on `ts_vm`, and make the executable runnable. For example:
+
+   ```bash
+   mkdir -p /home/<USERNAME>/pipeline/bin
+   cd /home/<USERNAME>/pipeline/bin
+   curl -fL -o motionphoto2-linux.zip '<MOTIONPHOTO_LINUX_RELEASE_URL>'
+   unzip motionphoto2-linux.zip
+   chmod +x ./motionphoto2
+   ./motionphoto2 --help
+   ```
+
+   The published Linux binary is built against an earlier glibc version for compatibility with older systems such as Debian 12. Set `MOTIONPHOTO_BIN` in `run_pipeline.sh` to the extracted executable path, for example:
+
+   ```bash
+   MOTIONPHOTO_BIN="/home/<USERNAME>/pipeline/bin/motionphoto2"
+   ```
+
+   Do not use both installations for one scheduled pipeline. Test the selected command with `--help` before enabling the cron job.
+
+#### 5.4.2 Run the weekly pipeline
+
+The script is `/home/<USERNAME>/pipeline/run_pipeline.sh`. Use the repository's [redacted script reference](./pipeline/run_pipeline.sh) as the starting point, replacing `<USERNAME>` with the account that owns the pipeline. It scans the Immich upload directory, excludes `.xmp` and `.immich` sidecar files, compares basenames with a ledger, and hard-links only new files into a temporary processing directory. MotionPhoto2 then writes converted output and copied non-motion-photo files to the staging directory. The temporary directory is emptied after processing; the ledger is retained at `/home/<USERNAME>/pipeline/pipeline_ledger.txt`, and output is appended to `/home/<USERNAME>/pipeline/pipeline.log`.
+
+| Purpose | Path |
+|---|---|
+| Immich source | `/mnt/truenas/immich/library/upload` |
+| Temporary hard-link directory | `/mnt/truenas/immich/pipeline/to_process` |
+| Syncthing staging directory | `/mnt/truenas/immich/pipeline/staging` |
+
+These directories are on the same TrueNAS filesystem so that `ln` can create hard links. Create the schedule in the pipeline user's crontab with `crontab -e`:
+
+```cron
+0 2 * * 6 /bin/bash /home/<USERNAME>/pipeline/run_pipeline.sh
+```
+
+This runs every Saturday at 02:00 in the TS VM's configured timezone. Confirm the job with `crontab -l`; cron installation and a successful scheduled run are not verified by this repository.
+
+#### 5.4.3 Sync the staging directory to the Pixel
+
+1. **Install and pair the app:** Install Syncthing-Fork on the Google Pixel 1. Connect the phone to Tailscale. In Syncthing-Fork, display the phone's device ID or QR code. In the server Syncthing GUI, choose **Add Remote Device**, enter or scan the phone's device ID, and save it with a reader-chosen device name.
+2. **Create the server folder:** In the server Syncthing GUI, choose **Add Folder**. Use a reader-chosen folder ID and label, and set the folder path to `/data/immich`. The Docker Compose mapping makes this the TS VM host directory `/mnt/truenas/immich/pipeline/staging`. Share the folder with the newly added Pixel device, set the folder type to **Send & Receive**, and leave the server's rescan interval at its default unless a different policy is needed.
+3. **Accept the folder on the Pixel:** Accept the folder-sharing request in Syncthing-Fork and choose `DCIM/ImmichSync` as the local folder path. Set the Pixel folder type to **Send & Receive**. This permits deleting files from the phone after upload and synchronizing those deletions back to the staging directory.
+4. **Confirm the connection:** With both devices connected to Tailscale, confirm that the server and Pixel show the shared folder as **Up to Date**. Device IDs, folder IDs, labels, hostnames, and addresses are created by the reader and must not be copied from another installation.
+5. **Enable Google Photos backup:** In Google Photos, enable backup for `DCIM/ImmichSync` and select full-quality/original upload. After Google Photos confirms upload, use **Free up space** to remove local copies from the Pixel while retaining the cloud copies. The staging directory is an additional Google Photos copy; it does not replace Immich library or database backups.
 
 ---
 
