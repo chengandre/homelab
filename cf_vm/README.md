@@ -349,9 +349,15 @@ Watchtower runs as part of this VM stack and monitors containers on `cf_vm` thro
 
 ## 6. Post-Deployment Steps
 
-With the services running, the final stage is to configure the network path to make them securely accessible from the internet. The flow of traffic will be:
+With the services running, the final stage is to configure the network paths used to access them. `cf_vm` does not run Tailscale; both paths terminate at the Control LXC's NPM and then forward to the service container.
 
-**Internet → Cloudflare Tunnel → Control LXC Tailscale address → Control LXC NPM → `cf_vm` service container**
+**Internet → Cloudflare Tunnel → Control LXC NPM → `cf_vm` service container**
+
+For applications that require a URL without Cloudflare Access authentication, use the alternate path from an authorized tailnet client:
+
+**Tailscale client → Control LXC Tailscale → Control LXC NPM → `cf_vm` service container**
+
+Configure Tailscale on the [Control LXC](../control_lxc/tailscale/tailscale.md), not on this VM. Use the Cloudflare path for applications that should retain Cloudflare Access protection, and the Control LXC Tailscale path for the specific applications that need to bypass that authentication layer.
 
 ### 6.1. Firewall Configuration
 

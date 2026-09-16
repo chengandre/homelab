@@ -64,7 +64,7 @@ This LXC container is responsible for overall management, monitoring, and secure
 
 #### `cf_vm` (Cloudflare-Exposed VM)
 
-Services hosted on this VM are intended for public access via Cloudflare Tunnel:
+Services hosted on this VM are reached through the Control LXC's NPM. The normal internet-facing path is Cloudflare Tunnel with Cloudflare Access. Applications that require a URL without Cloudflare Access can instead use the Control LXC's Tailscale connection; Tailscale is installed on `control_lxc`, not on `cf_vm`:
 
 *   **Glances:** System monitoring dashboard providing a quick overview of resource usage on the VM.
 *   [**SearXNG:**](./cf_vm/README.md#54-searxng) A privacy-respecting metasearch engine.
