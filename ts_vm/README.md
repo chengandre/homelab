@@ -146,7 +146,7 @@ Vaultwarden provides a Bitwarden-compatible password manager.
 * **VW_UID / VW_GID:** Stack variables passed to the container as `PUID` and `PGID`.
 * **TZ:** Timezone from the stack environment.
 
-The Compose configuration disables signups.
+Vaultwarden requires HTTPS for normal client access. In this setup, the service is reached through the TS VM's NPM using a Cloudflare DNS record for the Vaultwarden hostname. The DNS-only record points to the TS VM's Tailscale hostname; NPM provides HTTPS with the Let's Encrypt certificate and forwards the request to the Vaultwarden container over its internal HTTP port. Clients must be connected to Tailscale. See [Cloudflare DNS names](#62-optional-cloudflare-dns-names) for the record and certificate configuration.
 
 ### 5.3 Watchtower
 
