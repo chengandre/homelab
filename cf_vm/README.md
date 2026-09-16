@@ -112,7 +112,7 @@ Once the VM is created, start it and access its console via the Proxmox UI to pr
     sudo systemctl restart ssh
     ssh -i path/to/your/private_key <username>@<CF_VM_IP>
     ```
-    For background on the settings, see the [Control LXC SSH hardening steps](../control_lxc/README.md#25-harden-ssh).
+    For background on the settings, see the [Control LXC SSH hardening steps](../control_lxc/README.md#25-harden-ssh-configuration).
 
 5.  **Configure the VM Firewall:** In the **CF VM terminal**, set the default policies and allow SSH from your LAN:
     ```bash
@@ -123,7 +123,7 @@ Once the VM is created, start it and access its console via the Proxmox UI to pr
     sudo ufw status verbose
     ```
     Replace `<LAN_SUBNET>` with your LAN range, such as `192.168.1.0/24`. Confirm that UFW is active and SSH is allowed before disconnecting. The service-specific firewall rules are added later in [Section 6.1](#61-firewall-configuration).
-    For the general UFW procedure, see the [Control LXC firewall steps](../control_lxc/README.md#26-configure-firewall).
+    For the general UFW procedure, see the [Control LXC firewall steps](../control_lxc/README.md#26-configure-firewall-ufw).
 
 ---
 

@@ -201,6 +201,6 @@ This policy gives ordinary tailnet members access to web services and SMB on tag
 }
 ```
 
-After saving the policy, assign `tag:server` to `ts_vm` from **Network → Machines**. Open the device, select **Edit ACL tags**, select `tag:server`, and save. This gives ordinary tailnet members access to the server's HTTP/HTTPS services, including NPM-proxied applications, while administration ports such as SSH, the NPM web UI, and Portainer remain restricted to the administrator's laptop.
+After saving the policy, assign `tag:server` to both the Control LXC and `ts_vm` from **Network → Machines**. Open each device, select **Edit ACL tags**, select `tag:server`, and save. This gives ordinary tailnet members access to the Control LXC's client-facing NPM and the TS VM's HTTP/HTTPS services, while administration ports such as SSH, the NPM web UI, and Portainer remain restricted to the administrator's laptop. Control LXC NPM reaches TS VM NPM over the LAN, so that proxy hop does not need a tailnet grant.
 
 ---

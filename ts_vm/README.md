@@ -1,8 +1,8 @@
 # Service Deployment Guide: Tailscale VM
 
-This Debian 12 VM runs Docker directly and is managed by the Control LXC's Portainer CE instance through the Portainer Agent. Tailscale is installed locally on `ts_vm`. Optional DNS-only CNAME records in Cloudflare give the services convenient domain names pointing to this VM's Tailscale hostname. Clients connect over Tailscale to a separate Nginx Proxy Manager (NPM) instance on this VM, which forwards requests to the hosted services.
+This Debian 12 VM runs Docker directly and is managed by the Control LXC's Portainer CE instance through the Portainer Agent. Tailscale is installed locally on `ts_vm`. The VM runs its own Nginx Proxy Manager (NPM) as a downstream proxy for its hosted services, while the Control LXC NPM provides the client-facing entry point. Optional DNS-only CNAME records in Cloudflare point service domains to the Control LXC's Tailscale hostname.
 
-For the shared VM procedures, follow the [CF VM creation steps](../cf_vm/README.md#1-proxmox-vm-creation), [Debian configuration steps](../cf_vm/README.md#2-initial-debian-vm-configuration), [Docker and Portainer Agent steps](../cf_vm/README.md#3-docker-and-portainer-agent-installation), and [NFS mounting steps](../cf_vm/README.md#42-mounting-nfs-shares-in-the-debian-vm). Use TS VM-specific names, shares, paths, and ports described below. For TS service domains, use this VM's Tailscale IP and its own NPM instance rather than the CF VM route through NPM on `control_lxc`.
+For the shared VM procedures, follow the [CF VM creation steps](../cf_vm/README.md#1-proxmox-vm-creation), [Debian configuration steps](../cf_vm/README.md#2-initial-debian-vm-configuration), [Docker and Portainer Agent steps](../cf_vm/README.md#3-docker-and-portainer-agent-installation), and [NFS mounting steps](../cf_vm/README.md#42-mounting-nfs-shares-in-the-debian-vm). Use TS VM-specific names, shares, paths, and ports described below. Service domains are handled by the Control LXC NPM and forwarded to this VM's downstream NPM.
 
 **Table of Contents:**
 
@@ -16,6 +16,13 @@ For the shared VM procedures, follow the [CF VM creation steps](../cf_vm/README.
    * [Immich Database Connection](#42-configuring-the-immich-database-connection)
    * [Docker Stack](#43-deploying-the-docker-stack)
 5. [Service-Specific Configurations](#5-service-specific-configurations)
+   * [Immich](#51-immich)
+   * [Vaultwarden](#52-vaultwarden)
+   * [Watchtower](#53-watchtower)
+   * [Syncthing and Google Pixel 1 Photo Backup](#54-syncthing-and-google-pixel-1-photo-backup)
+     * [Install the Pipeline Dependencies](#541-install-the-pipeline-dependencies)
+     * [Run the Weekly Pipeline](#542-run-the-weekly-pipeline)
+     * [Sync the Staging Directory to the Pixel](#543-sync-the-staging-directory-to-the-pixel)
 6. [Post-Deployment Steps](#6-post-deployment-steps)
    * [NPM Deployment and Proxy Hosts](#61-npm-deployment-and-proxy-hosts)
    * [Optional Cloudflare DNS Names](#62-optional-cloudflare-dns-names)
@@ -46,7 +53,7 @@ Tailscale runs directly on the Debian VM. It provides the private network path t
    ```
 
    The `tailscale up` command prints a browser URL. Open it, sign in to the existing tailnet, and approve the new `ts_vm` device. This setup uses interactive browser authentication rather than a reusable auth key. No special routes, exit-node settings, or other `tailscale up` flags are configured. For reference, see the [Tailscale Linux installation](https://tailscale.com/docs/install/linux) page.
-2. **Set the Device Name:** In the Tailscale admin console sidebar, open **Network → Machines**, select the new device, open its device menu, choose the option to edit or rename the machine, enter `ts_vm`, and save. Open the device details again and copy its full DNS name, in the form `<TS_VM_HOSTNAME>.<TAILNET_NAME>.ts.net`, for the later DNS configuration. For background, see [Tailscale MagicDNS](https://tailscale.com/docs/features/magicdns).
+2. **Set the Device Name:** In the Tailscale admin console sidebar, open **Network → Machines**, select the new device, open its device menu, choose the option to edit or rename the machine, enter `ts_vm`, and save. For background, see [Tailscale MagicDNS](https://tailscale.com/docs/features/magicdns).
 3. **Apply the Server Tag:** In **Network → Machines**, open the `ts_vm` device and select **Edit ACL tags**. Select `tag:server` and save. If `tag:server` is not available, create it first using the [tag creation steps](../control_lxc/tailscale/tailscale.md#5-tailnet-access-policy), then return to **Edit ACL tags**. Tags identify server devices and are targeted by the homelab's [tailnet access policy](#32-tailnet-access-policy). For background, see [Tailscale server setup](https://tailscale.com/docs/how-to/set-up-servers) and [Tailscale tags](https://tailscale.com/docs/features/tags).
 4. **Disable Key Expiry:** In **Network → Machines**, open the `ts_vm` device menu, choose **Disable key expiry**, and confirm the change. Reopen the device menu and check that the action now indicates key expiry is disabled. This is the confirmed setting for this long-running server. For background, see [Tailscale key expiry](https://tailscale.com/docs/features/access-control/key-expiry).
 5. **Enable Tailnet DNS:** In the Tailscale admin console sidebar, open **DNS**, turn on **MagicDNS**, and enable the setting that allows clients to use Tailscale DNS settings. Save the DNS settings. This lets authorized clients resolve the VM's `.ts.net` hostname while connected to the tailnet. Do not add a custom nameserver or split-DNS configuration unless your tailnet requires one. For background, see [Tailscale MagicDNS](https://tailscale.com/docs/features/magicdns).
@@ -146,7 +153,7 @@ Vaultwarden provides a Bitwarden-compatible password manager.
 * **VW_UID / VW_GID:** Stack variables passed to the container as `PUID` and `PGID`.
 * **TZ:** Timezone from the stack environment.
 
-Vaultwarden requires HTTPS for normal client access. In this setup, the service is reached through the TS VM's NPM using a Cloudflare DNS record for the Vaultwarden hostname. The DNS-only record points to the TS VM's Tailscale hostname; NPM provides HTTPS with the Let's Encrypt certificate and forwards the request to the Vaultwarden container over its internal HTTP port. Clients must be connected to Tailscale. See [Cloudflare DNS names](#62-optional-cloudflare-dns-names) for the record and certificate configuration.
+Vaultwarden requires HTTPS for normal client access. Its DNS-only record points to the Control LXC's Tailscale hostname. The Control LXC NPM forwards HTTPS over the LAN to the TS VM NPM, which sends the request to Vaultwarden over its internal HTTP port. Both NPM proxy hosts use a certificate covering the Vaultwarden domain. Clients must be connected to Tailscale. See [Cloudflare DNS names](#62-optional-cloudflare-dns-names) for the record and certificate configuration.
 
 ### 5.3 Watchtower
 
@@ -247,26 +254,28 @@ This runs every Saturday at 02:00 in the TS VM's configured timezone. Confirm th
 
 #### 5.4.3 Sync the staging directory to the Pixel
 
-1. **Install and pair the app:** Install Syncthing-Fork on the Google Pixel 1. Connect the phone to Tailscale. In Syncthing-Fork, display the phone's device ID or QR code. In the server Syncthing GUI, choose **Add Remote Device**, enter or scan the phone's device ID, and save it with a reader-chosen device name.
+1. **Install and pair the app:** Install Syncthing-Fork on the Google Pixel 1. In Syncthing-Fork, display the phone's device ID or QR code. In the server Syncthing GUI, choose **Add Remote Device**, enter or scan the phone's device ID, and save it with a reader-chosen device name. Both devices need internet access for the Syncthing relay used by this setup; the Pixel does not need Tailscale for this synchronization step.
 2. **Create the server folder:** In the server Syncthing GUI, choose **Add Folder**. Use a reader-chosen folder ID and label, and set the folder path to `/data/immich`. The Docker Compose mapping makes this the TS VM host directory `/mnt/truenas/immich/pipeline/staging`. Share the folder with the newly added Pixel device, set the folder type to **Send & Receive**, and leave the server's rescan interval at its default unless a different policy is needed.
 3. **Accept the folder on the Pixel:** Accept the folder-sharing request in Syncthing-Fork and choose `DCIM/ImmichSync` as the local folder path. Set the Pixel folder type to **Send & Receive**. This permits deleting files from the phone after upload and synchronizing those deletions back to the staging directory.
-4. **Confirm the connection:** With both devices connected to Tailscale, confirm that the server and Pixel show the shared folder as **Up to Date**. Device IDs, folder IDs, labels, hostnames, and addresses are created by the reader and must not be copied from another installation.
+4. **Confirm the connection:** With the Pixel online and Syncthing-Fork running, expand its entry under **Remote Devices** in the TS VM Syncthing web UI. Confirm the shared folder is **Up to Date**. A **Relay WAN** connection can synchronize the folder without a direct tailnet connection on port 22000; this is the connection type shown by the documented setup. See [Syncthing's relay guidance](https://docs.syncthing.net/v1.30.0/users/faq.html). Device IDs, folder IDs, labels, hostnames, and addresses are created by the reader and must not be copied from another installation.
 5. **Enable Google Photos backup:** In Google Photos, enable backup for `DCIM/ImmichSync` and select full-quality/original upload. After Google Photos confirms upload, use **Free up space** to remove local copies from the Pixel while retaining the cloud copies. The staging directory is an additional Google Photos copy; it does not replace Immich library or database backups.
 
 ---
 
 ## 6. Post-Deployment Steps
 
-Tailscale runs locally on `ts_vm`. With the optional DNS records below, name resolution and service access work as follows:
+Tailscale runs locally on `ts_vm`, and the TS VM NPM remains the downstream proxy for its application containers. With the optional DNS records below, name resolution and service access work as follows:
 
-* **DNS:** `photos.<YOUR_DOMAIN>` or `vw.<YOUR_DOMAIN>` → CNAME to `<TS_VM_TAILSCALE_HOSTNAME>` → TS VM Tailscale IP.
-* **Connection:** Authorized client connected to Tailscale → NPM on `ts_vm` → Immich or Vaultwarden.
+* **DNS:** `photos.<YOUR_DOMAIN>` or `vw.<YOUR_DOMAIN>` → CNAME to `<CONTROL_LXC_TAILSCALE_HOSTNAME>` → Control LXC Tailscale IP.
+* **Connection:** Authorized client connected to Tailscale → Control LXC NPM → TS VM LAN IP → TS VM NPM → Immich or Vaultwarden.
 
-Cloudflare supplies the DNS record; the client sends service traffic over Tailscale to NPM. These DNS-only records do not make the services publicly accessible. The client must be connected to Tailscale, able to resolve the VM's Tailscale hostname, and permitted to reach NPM by the tailnet's access rules. NPM uses the requested service domain to select the appropriate proxy host.
+Cloudflare supplies the DNS record; the client sends service traffic over Tailscale to the Control LXC NPM, which forwards it to the TS VM NPM. These DNS-only records do not make the services publicly accessible. The client must be connected to Tailscale, able to resolve the Control LXC's Tailscale hostname, and permitted to reach the Control LXC NPM by the tailnet's access rules. Both NPM instances use the requested service domain to select the appropriate proxy host.
 
 ### 6.1 NPM Deployment and Proxy Hosts
 
-NPM runs as part of this TS VM Compose stack. It publishes HTTP, HTTPS, and its administration interface on the TS VM and shares the `proxy-net` Docker network with `immich-server` and `vaultwarden`. Because the proxy hosts use Docker container names, this shared network is required.
+NPM runs as part of this TS VM Compose stack. It publishes HTTP, HTTPS, and its administration interface on the TS VM and shares the `proxy-net` Docker network with `immich-server` and `vaultwarden`. Because the downstream proxy hosts use Docker container names, this shared network is required. The Control LXC NPM forwards the service domains to this NPM over the TS VM's LAN address.
+
+The Control LXC must be able to reach `<TS_VM_IP>:443` on the LAN. Docker publishes this port independently of the VM's UFW allow rules; those rules alone do not limit which LAN clients can reach it. If source restrictions are needed, configure them in the network firewall or Docker's firewall backend. See [Docker's firewall guidance](https://docs.docker.com/engine/network/packet-filtering-firewalls/).
 
 1. **Prepare Persistent Directories:** In the **TS VM terminal**, create the host directories for NPM data and certificates. Replace the examples with paths chosen for this VM:
 
@@ -300,24 +309,35 @@ NPM runs as part of this TS VM Compose stack. It publishes HTTP, HTTPS, and its 
    | Access List | **Public** |
 
    On the **SSL** tab, select the Let's Encrypt certificate covering this domain and enable **Force SSL** and **HTTP/2 Support**. Leave the other proxy-host fields unchanged. Do not add an access list; the host uses **Public** access. Save the proxy host and confirm its status is **Online**.
-6. **Verify the Network Path:** In the TS VM terminal, confirm the stack has created `proxy-net` and that NPM can resolve both upstream container names. From an authorized Tailscale client, the expected path is `photos.<YOUR_DOMAIN>` or `vw.<YOUR_DOMAIN>` → TS VM Tailscale IP → NPM → the corresponding container. The owner confirms this route is working.
+6. **Configure the Control LXC NPM:** In the **Control LXC NPM web interface → Hosts → Proxy Hosts**, create a proxy host for each TS VM service. Use the same public domain and certificate configured on this downstream NPM. For Immich, enter:
+
+   | Field | Value |
+   |---|---|
+   | Domain Names | `photos.<YOUR_DOMAIN>` |
+   | Scheme | `https` |
+   | Forward Hostname / IP | `<TS_VM_IP>` |
+   | Forward Port | `443` |
+   | Access List | **Public** |
+
+   On the **SSL** tab, select the certificate covering this domain and enable **Force SSL** and **HTTP/2 Support**. Leave the other proxy-host fields unchanged. Save the proxy host and confirm its status is **Online**. Repeat for Vaultwarden using `vw.<YOUR_DOMAIN>` as **Domain Names**, the same TS VM LAN address, and port `443`.
+7. **Verify the End-to-End Path:** From an authorized Tailscale client, the expected path is `photos.<YOUR_DOMAIN>` or `vw.<YOUR_DOMAIN>` → Control LXC Tailscale IP → Control LXC NPM → TS VM LAN IP → TS VM NPM → the corresponding container.
 
 ### 6.2 Optional Cloudflare DNS Names
 
-These records make client URLs easier to remember. Before adding them, join `ts_vm` and the client to your tailnet and configure the TS VM's NPM proxy hosts for Immich and Vaultwarden. Each proxy host must use the same domain you add below and forward to its service's configured port (`IMMICH_PORT` or `VW_PORT`). For HTTPS, NPM needs a certificate covering the chosen service domain; the CNAME does not configure a certificate.
+These records make client URLs easier to remember. Before adding them, join `ts_vm` and the client to your tailnet, then configure the downstream and client-facing proxy hosts in the [NPM procedure above](#61-npm-deployment-and-proxy-hosts). Each proxy host must use the same domain you add below. The CNAME does not configure a certificate; both NPM instances need a certificate covering the chosen service domain.
 
-1. **Obtain the Tailscale Hostname:** Use the full device name recorded in [Tailscale installation and tailnet setup](#31-tailscale-installation-and-tailnet-setup), in the form `<DEVICE_NAME>.<TAILNET_NAME>.ts.net`. Use that name as `<TS_VM_TAILSCALE_HOSTNAME>` below; do not substitute the VM's LAN address or include `https://`, a port, or a path. MagicDNS and client DNS acceptance should already be enabled from the earlier setup.
+1. **Obtain the Control LXC Tailscale Hostname:** In the Tailscale admin console, open **Network → Machines**, select the Control LXC device, and copy its full DNS name in the form `<DEVICE_NAME>.<TAILNET_NAME>.ts.net`. Use that name as `<CONTROL_LXC_TAILSCALE_HOSTNAME>` below; do not substitute the TS VM's address or include `https://`, a port, or a path. MagicDNS and client DNS acceptance should already be enabled from the earlier setup.
 2. **Add the Immich Record:** In the **Cloudflare dashboard**, select your domain, open **DNS → Records**, and click **Add record**. Enter:
 
    | Field | Value |
    |---|---|
    | Type | **CNAME** |
    | Name | Your desired subdomain, for example `photos` |
-   | Target | `<TS_VM_TAILSCALE_HOSTNAME>` |
+   | Target | `<CONTROL_LXC_TAILSCALE_HOSTNAME>` |
    | Proxy status | **DNS only** (grey cloud) |
    | TTL | **Auto** |
 
-   Replace the target with the hostname copied in Step 1, then click **Save**. With the example name, the Immich URL is `https://photos.<YOUR_DOMAIN>`. Replace `<YOUR_DOMAIN>` with your Cloudflare-managed domain. Keep the record **DNS only** so clients connect directly over Tailscale. See [Cloudflare record creation](https://developers.cloudflare.com/dns/manage-dns-records/how-to/create-dns-records/) and [proxy status](https://developers.cloudflare.com/dns/proxy-status/).
-3. **Add the Vaultwarden Record:** Click **Add record** again. Use **CNAME**, your desired **Name**, for example `vw`, the same **Target** `<TS_VM_TAILSCALE_HOSTNAME>`, **DNS only**, and **TTL: Auto**. Save. With this example, enter `vw.<YOUR_DOMAIN>` as the Vaultwarden NPM proxy-host domain and `https://vw.<YOUR_DOMAIN>` as the stack's `VW_DOMAIN` value.
-4. **Verify the Records:** Reopen both records and confirm their subdomain names, identical Tailscale hostname targets, **DNS only** status, and **Auto** TTL. In the **TS VM NPM web interface → Hosts → Proxy Hosts**, confirm each full domain matches its service's proxy host and HTTPS certificate.
-5. **Test from a Tailscale Client:** Connect your client to the tailnet and open `https://photos.<YOUR_DOMAIN>` and `https://vw.<YOUR_DOMAIN>` in its browser. Expect the Immich and Vaultwarden interfaces respectively, with valid HTTPS certificates for those domains. If a name does not resolve, check that the client can resolve `<TS_VM_TAILSCALE_HOSTNAME>` and uses Tailscale DNS settings. If NPM's default page appears, check the proxy-host domain; if the upstream fails, check its destination and service port.
+   Replace the target with the hostname copied in Step 1, then click **Save**. With the example name, the Immich URL is `https://photos.<YOUR_DOMAIN>`. Replace `<YOUR_DOMAIN>` with your Cloudflare-managed domain. Keep the record **DNS only** so clients connect over Tailscale to the Control LXC NPM. See [Cloudflare record creation](https://developers.cloudflare.com/dns/manage-dns-records/how-to/create-dns-records/) and [proxy status](https://developers.cloudflare.com/dns/proxy-status/).
+3. **Add the Vaultwarden Record:** Click **Add record** again. Use **CNAME**, your desired **Name**, for example `vw`, the same **Target** `<CONTROL_LXC_TAILSCALE_HOSTNAME>`, **DNS only**, and **TTL: Auto**. Save. With this example, enter `vw.<YOUR_DOMAIN>` as both NPM proxy-host domains and `https://vw.<YOUR_DOMAIN>` as the stack's `VW_DOMAIN` value.
+4. **Verify the Records:** Reopen both records and confirm their subdomain names, identical Control LXC Tailscale hostname targets, **DNS only** status, and **Auto** TTL. In both the **Control LXC NPM** and **TS VM NPM** web interfaces → **Hosts → Proxy Hosts**, confirm each full domain matches its proxy host and HTTPS certificate.
+5. **Test from a Tailscale Client:** Connect your client to the tailnet and open `https://photos.<YOUR_DOMAIN>` and `https://vw.<YOUR_DOMAIN>` in its browser. Expect the Immich and Vaultwarden interfaces respectively, with valid HTTPS certificates for those domains. If a name does not resolve, check that the client can resolve `<CONTROL_LXC_TAILSCALE_HOSTNAME>` and uses Tailscale DNS settings. If NPM's default page appears, check the proxy-host domain; if the upstream fails, check its destination and service port.
