@@ -22,6 +22,11 @@ TrueNAS provides persistent storage and hosts database applications for services
      * [Mass-Storage Dataset](#321-mass-storage-dataset)
      * [NFS Share](#322-nfs-share)
      * [MariaDB Connection](#323-mariadb-connection)
+4. [SMB and Time Machine](#4-smb-and-time-machine)
+   * [Datasets and Accounts](#41-datasets-and-accounts)
+   * [SMB Shares](#42-smb-shares)
+   * [macOS Time Machine Setup](#43-macos-time-machine-setup)
+   * [Snapshot Tasks](#44-snapshot-tasks)
 
 ---
 
@@ -351,3 +356,59 @@ Reuse the [MariaDB dataset and application deployment](#311-mariadb-dataset-and-
 | `DB_PASS` | Password for that account | `PAPERLESS_DBPASS` |
 
 Compose sets `PAPERLESS_DBENGINE=mariadb`. Use Paperless's own database name and database user, which differ from Nextcloud's. Obtain its account password from the Paperless database configuration. Return to [CF stack deployment](../cf_vm/README.md#43-deploying-the-docker-stack) after setting these values.
+
+## 4. SMB and Time Machine
+
+TrueNAS stores Time Machine backups in one parent dataset with one child dataset and SMB share per Mac. The child dataset and SMB account use the same username for each Mac, and each child has its own dataset quota. The Macs reach TrueNAS over the existing Tailscale connection; this section covers the TrueNAS storage and SMB configuration plus the macOS destination setup.
+
+### 4.1 Datasets and Accounts
+
+Create one account, group, child dataset, and quota for each Mac. The examples below use `<MAC_USERNAME>` for one Mac. If you have multiple Macs, repeat the account, child-dataset, quota, SMB-share, and macOS setup steps for each Mac with a different matching username.
+
+1. **Create the Parent Dataset:** In **TrueNAS → Datasets**, select the pool where Time Machine backups belong, for example `<MASS_STORAGE_POOL>`, and click **Add Dataset**. Enter `TimeMachine` as the parent dataset name. Use the dataset properties appropriate for the pool. Because Time Machine is designed to use available storage for historical backups, consider setting a parent dataset quota if you want to reserve space for other consumers.
+2. **Create the Mac User and Group:** In **TrueNAS → Credentials → Users → Add**, create a user whose **Username** matches the macOS account that will authenticate to SMB, for example `<MAC_USERNAME>`. Create a dedicated primary group for that user, choose an available UID, and set an SMB password. These accounts are for SMB authentication and dataset ownership; do not publish their passwords. For another Mac, create another dedicated user and group matching that Mac's account.
+3. **Create the Child Dataset:** In **TrueNAS → Datasets**, select `<MASS_STORAGE_POOL>/TimeMachine` and click **Add Dataset**. Set **Name** to `<MAC_USERNAME>`, producing the example path `/mnt/<MASS_STORAGE_POOL>/TimeMachine/<MAC_USERNAME>`. Create one additional child dataset for each additional Mac, using that Mac's matching username as the dataset name.
+4. **Set Dataset Ownership:** Open the child dataset's **Permissions → Edit ACL**. Set **Owner** to the matching Mac user and **Owner Group** to its dedicated group. If creating the dataset from scratch, apply the owner and group to the new dataset.
+5. **Set Dataset ACL Entries:** For each child dataset, configure the access entries as follows:
+
+   | Entry | Permissions |
+   |---|---|
+   | User Obj — matching Mac user | Read, Write, Execute |
+   | Group Obj — dedicated group | Read, Write, Execute |
+   | Other | Read |
+
+   Configure the corresponding default entries so the matching user and group have **Read, Write, Execute**, while **Other** has **None**. Do not apply permissions recursively to existing backup data unless you intentionally need to repair it.
+6. **Set Dataset Quotas:** Open **Dataset Space Management → Edit** for each child and configure an optional quota appropriate for that Mac. Per-Mac quotas prevent one computer's history from consuming all space available to the other datasets. If you set both parent and child quotas, ensure the child limits fit within the parent limit and leave room for normal ZFS operation. User and group quotas are separate settings.
+
+### 4.2 SMB Shares
+
+Create one SMB share for each child dataset. Repeat these steps for every additional Mac, using its matching child-dataset path and share name.
+
+1. **Add the Share:** In **TrueNAS → Shares → Windows (SMB) Shares**, click **Add**. Set **Path** to `/mnt/<MASS_STORAGE_POOL>/TimeMachine/<MAC_USERNAME>` and **Name** to `<MAC_USERNAME>`.
+2. **Select the Purpose:** Set **Purpose** to **Multi-user time machine**. Leave **Description** empty and keep **Enabled** selected.
+3. **Leave the Access Defaults:** Keep **Enable ACL** selected, **Export Read Only** unchecked, **Browsable to Network Clients** selected, and **Allow Guest Access** and **Access Based Share Enumeration** unchecked. Leave **Hosts Allow** and **Hosts Deny** empty unless you intentionally want an additional host restriction; Tailscale access is handled by the existing network configuration.
+4. **Enable Time Machine:** Under **Other Options**, confirm **Time Machine** is enabled. Leave **Time Machine Quota** blank at its default unless you want a separate SMB-share quota; the optional dataset quotas in Section 4.1 are the primary storage limits described here. Leave **Legacy AFP Compatibility** unchecked.
+5. **Change Only the Required Advanced Option:** Enable **Use Apple-style Character Encoding**. Leave the other advanced options at their defaults: **Audit Logging** disabled, **Use as Home Share** unchecked, **Enable Shadow Copies** enabled, **Enable Alternate Data Streams** enabled, **Enable SMB2/3 Durable Handles** enabled, and **Enable FSRVP** unchecked. Keep **Path Suffix** as `%U` and leave **Additional Parameters String** at its default value, `zfs_core:zfs_auto_create=true`.
+6. **Save the Share:** Save the share. For each additional Mac, repeat Steps 1–5 with its child dataset path and share name. Each Mac must use its own SMB account and share.
+
+### 4.3 macOS Time Machine Setup
+
+Repeat these steps on each Mac while it is connected to the tailnet.
+
+1. **Open Time Machine Settings:** Open **System Settings → General → Time Machine** and click **Add Backup Disk** or **Add Backup Disk…**, depending on the macOS version.
+2. **Select the Share:** Choose the SMB share matching that Mac's username, for example `<MAC_USERNAME>`.
+3. **Authenticate:** When prompted, choose the registered-user option and enter the matching TrueNAS SMB username and password. Enable **Remember this password in my keychain** if desired.
+4. **Choose the Backup Options:** Confirm the selected destination and configure the Mac's preferred backup schedule and exclusions. macOS may offer an option to encrypt the backup; choose according to the owner's backup policy. This guide does not claim whether the deployed backups are encrypted.
+5. **Repeat for Additional Macs:** Configure each additional Mac with its matching TrueNAS username and SMB share. Do not point multiple Macs at the same child dataset.
+
+### 4.4 Snapshot Tasks
+
+Create a snapshot task for each Mac's Time Machine child dataset. Snapshots provide a separate ZFS recovery point for the backup dataset; they do not replace the Mac's Time Machine history or a separate backup of the TrueNAS system.
+
+1. **Open Snapshot Tasks:** In **TrueNAS → Datasets**, select the child dataset for the Mac. Open **Data Protection → Manage Snapshot Tasks** and choose the option to add a task.
+2. **Select the Dataset:** Set **Dataset** to the selected Mac-specific Time Machine dataset. Repeat this procedure for each additional Mac's child dataset.
+3. **Set the Snapshot Lifetime:** Set **Snapshot Lifetime** to `1` and **Unit** to **Week**. This automatically expires snapshots after one week.
+4. **Keep the Dataset Scope:** Leave **Exclude** empty and **Recursive** unchecked so the task snapshots only the selected child dataset. Do not enable recursive snapshots unless you intentionally want the task to include descendant datasets.
+5. **Keep the Naming Default:** Leave **Naming Schema** at its default value, for example `auto-%Y-%m-%d_%H-%M`.
+6. **Set the Schedule:** Set **Schedule** to **Daily at 00:00 (12:00 AM)**. Leave **Allow Taking Empty Snapshots** unchecked and keep **Enabled** selected.
+7. **Save the Task:** Save the snapshot task. Repeat Steps 1–6 for each Mac-specific child dataset.
